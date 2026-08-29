@@ -107,12 +107,22 @@ def detect_intent(text, api_key):
 RULES = "ALWAYS: say 'consistent with X per [Guideline]' never 'you have X'. Never name prescription drugs. Cite guideline for every clinical claim. Give EXACT OTC dosing: product, mg, frequency, max duration, safety note."
 
 SP = {
-"symptom": f"""Clinical triage AI. ONE question at a time physician-style.
+"symptom": f"""Clinical triage AI. Conduct a thorough physician-style intake.
 
-PHASE 1 (first 4 exchanges): Ask ONE question only. Max 2 sentences. Brief warm acknowledgment. NO guidance yet.
-Most important unanswered: duration, severity 1-10, fever/temp, other symptoms, medications/allergies, age, pregnancy if relevant.
+PHASE 1 — INTAKE RULES:
+- Ask 1-3 RELATED questions together in one message — never more than 3
+- Group logically: basic info together, symptom specifics together, history together
+- Cover ALL of these before assessment: duration, severity, fever, associated symptoms, age, medications, allergies, relevant history, pregnancy if relevant, condition-specific red flag questions
+- Acknowledge briefly what they said before asking
+- Do NOT give any guidance or OTC advice during intake
+- Minimum 3 exchanges before assessment, no maximum — keep asking until you have complete clinical picture
 
-PHASE 2 (after 4 exchanges — output this exactly):
+EXCHANGE STRUCTURE:
+Exchange 1: Basic info — "How long have you had this? How severe on a scale of 1-10? Do you have any fever?"
+Exchange 2: Associated symptoms + history — "Any other symptoms alongside this? Are you taking any medications or have any allergies?"
+Exchange 3+: Condition-specific questions — ask targeted clinical questions based on what they told you. Keep going until you have enough to assess safely.
+
+PHASE 2 — only output when you have COMPLETE clinical picture:
 ASSESSMENT_READY
 URGENCY: [GREEN/YELLOW/URGENT]
 **What your symptoms suggest**
@@ -132,7 +142,7 @@ URGENCY: [GREEN/YELLOW/URGENT]
 {RULES}""",
 
 "medication": f"""Medication guidance AI. OTC only.
-Ask ONE question at a time: 1.Which medication? 2.Specific concern? 3.Kidney/liver disease or pregnant? 4.Other medications?
+Ask 2-3 related questions together. Cover: which medication, specific concern, kidney/liver disease, pregnancy, other medications, age. Group logically — get full picture in 2-3 exchanges.
 After context gathered output:
 MED_READY
 **About [medication]** [What it is — FDA DailyMed]
@@ -169,7 +179,7 @@ MENTAL_READY
 {RULES}""",
 
 "chronic": f"""Chronic disease AI.
-Ask ONE at a time: 1.Which condition? 2.Most recent reading? 3.Current medications? 4.Specific concern? 5.New symptoms?
+Ask 2-3 related questions together. Cover: condition, most recent readings, current medications, specific concern today, new symptoms, how long managing this. Get full picture in 2-3 exchanges.
 After context:
 CHRONIC_READY
 **Your condition targets** [Evidence-based targets from ADA/AHA/GINA with year]
@@ -181,7 +191,7 @@ CHRONIC_READY
 NEVER adjust prescription medications. {RULES}""",
 
 "lab": f"""Lab interpretation AI.
-Ask ONE at a time: 1.Which test? 2.Value and units? 3.Was this fasting? 4.Any symptoms? 5.Relevant medical history?
+Ask 2-3 related questions together. First exchange: which test and what value/units? Second exchange: was it fasting, any symptoms, relevant medical history?
 After context:
 LAB_READY
 **What this test measures** [Simple — 2 sentences]
@@ -220,8 +230,8 @@ LABELS = {
     "general":("💬 General health","ig"),
 }
 READY = ["ASSESSMENT_READY","MED_READY","PREVENTIVE_READY","MENTAL_READY","CHRONIC_READY","LAB_READY","ROUTING_READY"]
-THRESH = {"symptom":4,"medication":3,"preventive":3,"mental_health":4,"chronic":3,"lab":3,"routing":3,"general":1}
-MAX_HISTORY = 8  # FIX: limit conversation history to prevent crashes
+THRESH = {"symptom":6,"medication":4,"preventive":3,"mental_health":5,"chronic":4,"lab":3,"routing":3,"general":1}
+MAX_HISTORY = 16  # Allow longer conversations — up to 8 full exchanges
 
 SCENARIOS = {
     "💊 UTI symptoms":"I have burning when I pee and going very frequently.",
@@ -279,9 +289,12 @@ with st.sidebar:
 
 # progress
 if st.session_state.chief_complaint and not st.session_state.assessment_done:
-    n = min(st.session_state.exchange_count,5)
-    steps=["🔍 Understanding your question...","📋 Gathering your history...","🩺 Asking follow-up questions...","📊 Almost ready...","⚕️ Preparing your response..."]
-    st.markdown(f'<div class="pbar">{steps[n]} (Step {n+1} of 5)</div>',unsafe_allow_html=True)
+    n = min(st.session_state.exchange_count, 6)
+    if n <= 1: ptext = "🔍 Understanding your situation..."
+    elif n <= 3: ptext = f"📋 Gathering your history... ({n} of ~6 questions)"
+    elif n <= 5: ptext = f"🩺 Asking clinical follow-up questions... ({n} of ~6)"
+    else: ptext = "⚕️ Almost ready — preparing your assessment..."
+    st.markdown(f'<div class="pbar">{ptext}</div>',unsafe_allow_html=True)
 
 # intent badge
 if st.session_state.intent and st.session_state.intent in LABELS:
