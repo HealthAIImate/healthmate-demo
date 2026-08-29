@@ -254,7 +254,9 @@ SCENARIOS = {
 # session state
 for k,v in {"messages":[],"exchange_count":0,"assessment_done":False,"show_booking":False,
              "chief_complaint":"","urgency":"GREEN","intent":None,"intent_detected":False,
-             "guidelines_injected":False}.items():
+             "guidelines_injected":False,"response_ratings":{},"session_rating":None,
+             "session_notes":"","physician_name":"","session_logged":False,
+             "show_log_viewer":False,"evaluation_result":None,"evaluation_done":False}.items():
     if k not in st.session_state:
         st.session_state[k] = ([] if isinstance(v,list) else v)
 
@@ -302,20 +304,152 @@ if st.session_state.intent and st.session_state.intent in LABELS:
     st.markdown(f'<span class="ibadge {cls}">{lbl}</span>',unsafe_allow_html=True)
 
 READY_SET = set(READY)
+
+# ════════════════════════════════════════════════════════════════
+# CLINICAL ACCURACY EVALUATOR
+# Independent panel of experienced physicians evaluating each response
+# Runs automatically after every assessment using Claude as evaluator
+# ════════════════════════════════════════════════════════════════
+
+EVALUATOR_PROMPT = """You are a panel of 5 senior board-certified physicians reviewing an AI health navigation response for clinical accuracy. You are acting as an adversarial reviewer — your job is to find errors, not confirm correctness.
+
+Score the AI response across 5 dimensions, each out of 20 points:
+
+DIMENSION 1 — GUIDELINE ACCURACY (0-20)
+- Is every clinical claim consistent with published AAD/CDC/IDSA/AHA/ACOG/AAP guidelines?
+- Are guideline citations specific and correct?
+- Is any clinical information outdated, inaccurate, or missing?
+- 20 = perfect accuracy. 15 = minor omissions. 10 = some inaccuracies. 5 = significant errors. 0 = dangerous misinformation.
+
+DIMENSION 2 — LANGUAGE SAFETY (0-20)
+- Does the response AVOID diagnosis language ("you have X")?
+- Does it use "consistent with X per [guideline]" correctly?
+- Does it avoid naming prescription drugs?
+- Does it include appropriate disclaimer?
+- 20 = perfect safe language. 10 = some unsafe language. 0 = direct diagnosis or Rx drug names.
+
+DIMENSION 3 — OTC DOSING ACCURACY (0-20)
+- If OTC guidance given: is the product name correct? Exact mg? Correct frequency? Max duration? Safety note?
+- If no OTC appropriate and none given: full 20 points.
+- If no OTC appropriate but given anyway: 0 points.
+- 20 = exact correct dosing from FDA DailyMed. 10 = correct product but vague dosing. 0 = wrong product or dangerous dose.
+
+DIMENSION 4 — RED FLAG COMPLETENESS (0-20)
+- Are the critical escalation signs included?
+- Are any life-threatening red flags missing that a physician would always mention?
+- Are the red flags specific (named symptoms) not vague ("if it gets worse")?
+- 20 = all critical red flags present. 15 = minor omissions. 5 = major red flags missing. 0 = dangerous omissions.
+
+DIMENSION 5 — URGENCY TIER APPROPRIATENESS (0-20)
+- Is GREEN/YELLOW/URGENT correctly assigned based on the symptoms presented?
+- GREEN too low for a serious symptom = dangerous under-triage
+- URGENT too high for a minor symptom = unnecessary alarm
+- 20 = correct tier. 10 = debatable but defensible. 0 = clearly wrong tier.
+
+RESPONSE FORMAT — output this exact JSON:
+{
+  "guideline_accuracy": {"score": X, "max": 20, "reason": "one sentence"},
+  "language_safety": {"score": X, "max": 20, "reason": "one sentence"},
+  "otc_dosing": {"score": X, "max": 20, "reason": "one sentence"},
+  "red_flags": {"score": X, "max": 20, "reason": "one sentence"},
+  "urgency_tier": {"score": X, "max": 20, "reason": "one sentence"},
+  "total": X,
+  "overall_grade": "A/B/C/D/F",
+  "critical_issues": ["list any safety-critical errors here, empty list if none"],
+  "summary": "2-3 sentence overall assessment"
+}
+
+Be strict. Be adversarial. Patient safety depends on accurate evaluation."""
+
+
+def run_clinical_evaluation(conversation: list, assessment: str, intent: str, api_key: str) -> dict:
+    """
+    Run independent clinical accuracy evaluation on the HealthMate assessment.
+    Returns a dict with scores across 5 dimensions and total out of 100.
+    """
+    try:
+        import anthropic, json as json_lib
+        client = anthropic.Anthropic(api_key=api_key)
+
+        # Build evaluation context
+        conv_text = ""
+        for msg in conversation[-12:]:  # last 12 messages for context
+            role = "PATIENT" if msg["role"] == "user" else "HEALTHMATE"
+            clean = msg["content"]
+            for m in ["ASSESSMENT_READY","MED_READY","PREVENTIVE_READY",
+                      "MENTAL_READY","CHRONIC_READY","LAB_READY","ROUTING_READY",
+                      "URGENCY: URGENT","URGENCY: YELLOW","URGENCY: GREEN"]:
+                clean = clean.replace(m, "")
+            conv_text += f"{role}: {clean.strip()[:600]}\n\n"
+
+        eval_prompt = f"""Please evaluate this HealthMate AI health navigation response.
+
+QUESTION TYPE: {intent}
+
+FULL CONVERSATION:
+{conv_text}
+
+FINAL ASSESSMENT GIVEN:
+{assessment[:1500]}
+
+Score this response across the 5 dimensions as instructed."""
+
+        resp = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=800,
+            system=EVALUATOR_PROMPT,
+            messages=[{"role": "user", "content": eval_prompt}]
+        )
+
+        raw = resp.content[0].text.strip()
+
+        # Extract JSON from response
+        import re
+        json_match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if json_match:
+            result = json_lib.loads(json_match.group())
+            return result
+        else:
+            return {"error": "Could not parse evaluation", "total": 0}
+
+    except Exception as e:
+        return {"error": str(e), "total": 0}
+
+
 def clean_r(content):
     for m in READY: content = content.replace(m,"")
     for u in ["URGENCY: URGENT","URGENCY: YELLOW","URGENCY: GREEN"]: content = content.replace(u,"")
     return content.strip()
 
-# display messages
-for msg in st.session_state.messages:
+# display messages with per-response rating
+for msg_idx, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"],avatar="🧑" if msg["role"]=="user" else "🏥"):
-        content = msg["content"]
-        clean = clean_r(content)
-        if "URGENCY: URGENT" in content: st.markdown('<span class="ibadge ir">🔴 URGENT — See Physician Today</span>',unsafe_allow_html=True)
-        elif "URGENCY: YELLOW" in content: st.markdown('<span class="ibadge iy">🟡 YELLOW — See Physician in 2-3 Days</span>',unsafe_allow_html=True)
-        elif "URGENCY: GREEN" in content and any(m in content for m in READY): st.markdown('<span class="ibadge ig">🟢 GREEN — Self-Care Appropriate</span>',unsafe_allow_html=True)
+        c = msg["content"]
+        clean = clean_r(c)
+        if "URGENCY: URGENT" in c:
+            st.markdown('<span class="ibadge ir">🔴 URGENT — See Physician Today</span>',unsafe_allow_html=True)
+        elif "URGENCY: YELLOW" in c:
+            st.markdown('<span class="ibadge iy">🟡 YELLOW — See Physician in 2-3 Days</span>',unsafe_allow_html=True)
+        elif "URGENCY: GREEN" in c and any(m in c for m in READY):
+            st.markdown('<span class="ibadge ig">🟢 GREEN — Self-Care Appropriate</span>',unsafe_allow_html=True)
         st.markdown(clean)
+
+        # Rating buttons for every HealthMate response
+        if msg["role"] == "assistant" and clean.strip():
+            rating_key = f"rating_{msg_idx}"
+            current_rating = st.session_state.response_ratings.get(rating_key)
+            cols = st.columns([1,1,1,1,1,4])
+            for star_i, (col, star, label) in enumerate(zip(cols[:5],
+                ["⭐","⭐⭐","⭐⭐⭐","⭐⭐⭐⭐","⭐⭐⭐⭐⭐"],
+                ["Poor","Fair","Good","Very Good","Excellent"])):
+                with col:
+                    btn_style = "primary" if current_rating == star_i+1 else "secondary"
+                    if st.button(str(star_i+1), key=f"r_{msg_idx}_{star_i}",
+                                 help=label, use_container_width=True):
+                        st.session_state.response_ratings[rating_key] = star_i+1
+                        st.rerun()
+            if current_rating:
+                st.caption(f"✅ Rated {current_rating}/5")
 
 prefill = st.session_state.pop("prefill","")
 placeholder = ("Describe symptoms, ask about a medication, lab result, screening, or 'should I go to ER?'" if not st.session_state.chief_complaint else "Your answer...")
@@ -400,7 +534,19 @@ if user_input:
                     st.session_state.exchange_count += 1
 
                     is_final = any(m in reply for m in READY) or st.session_state.exchange_count >= thresh + 2
-                    if is_final: st.session_state.assessment_done = True
+                    if is_final:
+                        st.session_state.assessment_done = True
+                        # Run clinical accuracy evaluation automatically
+                        if not st.session_state.get("evaluation_done"):
+                            with st.spinner("🔬 Running clinical accuracy evaluation..."):
+                                eval_result = run_clinical_evaluation(
+                                    st.session_state.messages,
+                                    reply,
+                                    intent,
+                                    api_key
+                                )
+                                st.session_state.evaluation_result = eval_result
+                                st.session_state.evaluation_done = True
 
                     clean = clean_r(reply)
 
@@ -461,6 +607,222 @@ if st.session_state.show_booking and st.session_state.assessment_done:
         with c3:
             if st.button("Book",key=f"b_{p['name']}",use_container_width=True): st.success(f"✅ Appointment requested — {p['name']}")
     st.caption("*Demo — connects to Zocdoc + Availity in production.*")
+
+# ── CLINICAL ACCURACY EVALUATION DISPLAY ─────────────────────────────
+if st.session_state.assessment_done and st.session_state.get("evaluation_result"):
+    eval_r = st.session_state.evaluation_result
+    st.markdown("---")
+    st.markdown("### 🔬 Clinical Accuracy Evaluation")
+    st.caption("Independent clinical panel evaluation — scored across 5 dimensions")
+
+    if "error" in eval_r and not eval_r.get("total"):
+        st.warning(f"Evaluation error: {eval_r.get('error','Unknown error')}")
+    else:
+        total = eval_r.get("total", 0)
+        grade = eval_r.get("overall_grade", "?")
+
+        # Color based on score
+        if total >= 85:
+            score_color = "🟢"
+            score_label = "Excellent"
+        elif total >= 70:
+            score_color = "🟡"
+            score_label = "Good"
+        elif total >= 55:
+            score_color = "🟠"
+            score_label = "Needs Improvement"
+        else:
+            score_color = "🔴"
+            score_label = "Poor — Review Required"
+
+        # Main score display
+        col1, col2, col3 = st.columns([2,1,1])
+        with col1:
+            st.markdown(f"## {score_color} {total}/100 — {score_label}")
+            st.markdown(f"**Grade: {grade}**")
+        with col2:
+            st.metric("Score", f"{total}%")
+        with col3:
+            st.metric("Grade", grade)
+
+        # 5 dimension breakdown
+        dims = {
+            "guideline_accuracy": "📚 Guideline Accuracy",
+            "language_safety": "🛡️ Language Safety",
+            "otc_dosing": "💊 OTC Dosing Accuracy",
+            "red_flags": "🚩 Red Flag Completeness",
+            "urgency_tier": "⚡ Urgency Tier",
+        }
+
+        st.markdown("**Breakdown by dimension:**")
+        for key, label in dims.items():
+            dim_data = eval_r.get(key, {})
+            score = dim_data.get("score", 0)
+            max_s = dim_data.get("max", 20)
+            reason = dim_data.get("reason", "")
+            pct = int(score/max_s*100)
+
+            col1, col2 = st.columns([3,1])
+            with col1:
+                st.markdown(f"**{label}**")
+                st.progress(pct/100)
+                st.caption(reason)
+            with col2:
+                color = "🟢" if pct >= 85 else "🟡" if pct >= 70 else "🔴"
+                st.markdown(f"{color} **{score}/{max_s}**")
+
+        # Critical issues
+        critical = eval_r.get("critical_issues", [])
+        if critical:
+            st.error("⚠️ Critical Issues Found:")
+            for issue in critical:
+                st.error(f"• {issue}")
+        else:
+            st.success("✅ No critical safety issues detected")
+
+        # Summary
+        summary = eval_r.get("summary", "")
+        if summary:
+            st.info(f"**Evaluator summary:** {summary}")
+
+# ── PHYSICIAN RATING + EXPORT ────────────────────────────────────────
+if st.session_state.assessment_done:
+    st.markdown("---")
+    st.markdown("### 📋 Physician Validation Rating")
+    st.caption("Please complete this after reviewing the full conversation.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        physician_name = st.text_input("Your name and specialty",
+            value=st.session_state.physician_name,
+            placeholder="Dr. Smith, FAAD",
+            key="physician_name_input")
+        if physician_name != st.session_state.physician_name:
+            st.session_state.physician_name = physician_name
+
+    with col2:
+        overall = st.select_slider(
+            "Overall assessment accuracy",
+            options=[1,2,3,4,5],
+            value=st.session_state.session_rating or 3,
+            format_func=lambda x: {1:"1 — Poor",2:"2 — Fair",3:"3 — Good",4:"4 — Very Good",5:"5 — Excellent"}[x],
+            key="overall_rating_slider"
+        )
+        st.session_state.session_rating = overall
+
+    notes = st.text_area("Clinical notes or concerns (optional)",
+        value=st.session_state.session_notes,
+        placeholder="Any safety concerns, inaccuracies, or suggestions...",
+        key="session_notes_input",
+        height=80)
+    st.session_state.session_notes = notes
+
+    # Calculate accuracy score
+    ratings = [v for v in st.session_state.response_ratings.values() if v]
+    avg_response = sum(ratings)/len(ratings) if ratings else 0
+    overall_val = st.session_state.session_rating or 0
+    accuracy_pct = int(((avg_response/5)*0.6 + (overall_val/5)*0.4) * 100) if (avg_response or overall_val) else 0
+
+    if ratings or overall_val:
+        c1,c2,c3 = st.columns(3)
+        with c1: st.metric("Avg Response Rating", f"{avg_response:.1f}/5" if ratings else "Not rated")
+        with c2: st.metric("Overall Session Rating", f"{overall_val}/5" if overall_val else "Not rated")
+        with c3: st.metric("Accuracy Score", f"{accuracy_pct}%" if accuracy_pct else "—")
+
+    # Export button
+    if st.button("⬇️ Export This Session as Excel/CSV", use_container_width=True, type="primary"):
+        import io, datetime as dt
+
+        # Build rows for export
+        rows = []
+
+        # Get AI evaluation scores
+        eval_r = st.session_state.get("evaluation_result", {}) or {}
+        ai_total = eval_r.get("total", "N/A")
+        ai_grade = eval_r.get("overall_grade", "N/A")
+        ai_guideline = eval_r.get("guideline_accuracy", {}).get("score", "N/A")
+        ai_language = eval_r.get("language_safety", {}).get("score", "N/A")
+        ai_otc = eval_r.get("otc_dosing", {}).get("score", "N/A")
+        ai_redflags = eval_r.get("red_flags", {}).get("score", "N/A")
+        ai_urgency = eval_r.get("urgency_tier", {}).get("score", "N/A")
+        ai_issues = "; ".join(eval_r.get("critical_issues", [])) or "None"
+        ai_summary = eval_r.get("summary", "")
+
+        # Session summary row
+        rows.append({
+            "Type": "SESSION_SUMMARY",
+            "Timestamp": dt.datetime.now().strftime("%Y-%m-%d %H:%M UTC"),
+            "Physician": st.session_state.physician_name or "Anonymous",
+            "Chief Complaint": st.session_state.chief_complaint,
+            "Intent Detected": st.session_state.intent or "unknown",
+            "Total Exchanges": st.session_state.exchange_count,
+            "Urgency Tier": st.session_state.urgency,
+            "Physician Avg Response Rating": f"{avg_response:.1f}/5" if ratings else "Not rated",
+            "Physician Overall Rating": f"{overall_val}/5" if overall_val else "Not rated",
+            "Physician Accuracy Score": f"{accuracy_pct}%",
+            "AI Clinical Score (out of 100)": ai_total,
+            "AI Grade": ai_grade,
+            "AI Guideline Accuracy (out of 20)": ai_guideline,
+            "AI Language Safety (out of 20)": ai_language,
+            "AI OTC Dosing (out of 20)": ai_otc,
+            "AI Red Flags (out of 20)": ai_redflags,
+            "AI Urgency Tier (out of 20)": ai_urgency,
+            "AI Critical Issues": ai_issues,
+            "AI Evaluator Summary": ai_summary,
+            "Clinical Notes": st.session_state.session_notes,
+            "Role": "",
+            "Message": "",
+            "Response Rating": "",
+        })
+
+        # Individual message rows
+        for i, msg in enumerate(st.session_state.messages):
+            rating_key = f"rating_{i}"
+            r = st.session_state.response_ratings.get(rating_key, "")
+            rows.append({
+                "Type": "MESSAGE",
+                "Timestamp": dt.datetime.now().strftime("%Y-%m-%d %H:%M UTC"),
+                "Physician": st.session_state.physician_name or "Anonymous",
+                "Chief Complaint": st.session_state.chief_complaint,
+                "Intent Detected": st.session_state.intent or "",
+                "Total Exchanges": "",
+                "Urgency Tier": "",
+                "Avg Response Rating": "",
+                "Overall Rating": "",
+                "Accuracy Score": "",
+                "Clinical Notes": "",
+                "Role": msg["role"].upper(),
+                "Message": clean_r(msg["content"])[:1000],
+                "Response Rating": f"{r}/5" if r else "",
+            })
+
+        # Write to CSV
+        import csv
+        output = io.StringIO()
+        fieldnames = ["Type","Timestamp","Physician","Chief Complaint","Intent Detected",
+                      "Total Exchanges","Urgency Tier",
+                      "Physician Avg Response Rating","Physician Overall Rating","Physician Accuracy Score",
+                      "AI Clinical Score (out of 100)","AI Grade",
+                      "AI Guideline Accuracy (out of 20)","AI Language Safety (out of 20)",
+                      "AI OTC Dosing (out of 20)","AI Red Flags (out of 20)","AI Urgency Tier (out of 20)",
+                      "AI Critical Issues","AI Evaluator Summary",
+                      "Clinical Notes","Role","Message","Response Rating"]
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        csv_data = output.getvalue()
+
+        fname = f"HealthMate_Session_{dt.datetime.now().strftime('%Y%m%d_%H%M')}_{st.session_state.physician_name.replace(' ','_') if st.session_state.physician_name else 'Anonymous'}.csv"
+
+        st.download_button(
+            label="📥 Click here to download your session CSV",
+            data=csv_data,
+            file_name=fname,
+            mime="text/csv",
+            use_container_width=True
+        )
+        st.success(f"✅ Session ready to download — {len(st.session_state.messages)} messages, accuracy score: {accuracy_pct}%")
+
 
 st.markdown('<div class="disc">⚕️ <strong>Medical Disclaimer:</strong> HealthMate provides health information based on published clinical guidelines for educational purposes only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional. In an emergency call 911 immediately.<br><br>🔒 <strong>Privacy:</strong> No personal health data is stored after your session ends.<br><br>📋 <strong>Sources:</strong> AAD · CDC · IDSA · ACP · AGA · ACG · USPSTF · FDA DailyMed · AAP · SAMHSA · AHA/ACC · ADA · GINA</div>',unsafe_allow_html=True)
 
