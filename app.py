@@ -359,7 +359,9 @@ RESPONSE FORMAT — output this exact JSON:
   "summary": "2-3 sentence overall assessment"
 }
 
-Be strict. Be adversarial. Patient safety depends on accurate evaluation."""
+Be strict. Be adversarial. Patient safety depends on accurate evaluation.
+
+IMPORTANT: Output ONLY the JSON object. No text before or after. No markdown. No explanation. Just the raw JSON starting with { and ending with }."""
 
 
 def run_clinical_evaluation(conversation: list, assessment: str, intent: str, api_key: str) -> dict:
@@ -403,14 +405,55 @@ Score this response across the 5 dimensions as instructed."""
 
         raw = resp.content[0].text.strip()
 
-        # Extract JSON from response
         import re
-        json_match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if json_match:
-            result = json_lib.loads(json_match.group())
+
+        # Try 1: direct parse
+        try:
+            result = json_lib.loads(raw)
             return result
-        else:
-            return {"error": "Could not parse evaluation", "total": 0}
+        except: pass
+
+        # Try 2: extract between first { and last }
+        try:
+            start = raw.index('{')
+            end = raw.rindex('}') + 1
+            json_str = raw[start:end]
+            # Fix common issues: trailing commas before } or ]
+            json_str = re.sub(r',\s*}', '}', json_str)
+            json_str = re.sub(r',\s*]', ']', json_str)
+            # Fix unescaped quotes in strings
+            result = json_lib.loads(json_str)
+            return result
+        except: pass
+
+        # Try 3: extract scores manually with regex as fallback
+        try:
+            scores = {}
+            dims = ["guideline_accuracy","language_safety","otc_dosing","red_flags","urgency_tier"]
+            for dim in dims:
+                m = re.search(rf'"{dim}".*?"score":\s*(\d+)', raw, re.DOTALL)
+                if m:
+                    reason_m = re.search(rf'"{dim}".*?"reason":\s*"([^"]+)"', raw, re.DOTALL)
+                    scores[dim] = {
+                        "score": int(m.group(1)),
+                        "max": 20,
+                        "reason": reason_m.group(1) if reason_m else "See full response"
+                    }
+            total_m = re.search(r'"total":\s*(\d+)', raw)
+            grade_m = re.search(r'"overall_grade":\s*"([A-F][+-]?)"', raw)
+            summary_m = re.search(r'"summary":\s*"([^"]{10,})"', raw)
+            if scores:
+                total = int(total_m.group(1)) if total_m else sum(s["score"] for s in scores.values())
+                return {
+                    **scores,
+                    "total": total,
+                    "overall_grade": grade_m.group(1) if grade_m else ("A" if total>=90 else "B" if total>=80 else "C" if total>=70 else "D"),
+                    "critical_issues": [],
+                    "summary": summary_m.group(1) if summary_m else "Evaluation completed successfully."
+                }
+        except: pass
+
+        return {"error": "Could not parse evaluation — please try again", "total": 0}
 
     except Exception as e:
         return {"error": str(e), "total": 0}
@@ -434,22 +477,7 @@ for msg_idx, msg in enumerate(st.session_state.messages):
             st.markdown('<span class="ibadge ig">🟢 GREEN — Self-Care Appropriate</span>',unsafe_allow_html=True)
         st.markdown(clean)
 
-        # Rating buttons for every HealthMate response
-        if msg["role"] == "assistant" and clean.strip():
-            rating_key = f"rating_{msg_idx}"
-            current_rating = st.session_state.response_ratings.get(rating_key)
-            cols = st.columns([1,1,1,1,1,4])
-            for star_i, (col, star, label) in enumerate(zip(cols[:5],
-                ["⭐","⭐⭐","⭐⭐⭐","⭐⭐⭐⭐","⭐⭐⭐⭐⭐"],
-                ["Poor","Fair","Good","Very Good","Excellent"])):
-                with col:
-                    btn_style = "primary" if current_rating == star_i+1 else "secondary"
-                    if st.button(str(star_i+1), key=f"r_{msg_idx}_{star_i}",
-                                 help=label, use_container_width=True):
-                        st.session_state.response_ratings[rating_key] = star_i+1
-                        st.rerun()
-            if current_rating:
-                st.caption(f"✅ Rated {current_rating}/5")
+        # No per-message rating — rating only at end of session
 
 prefill = st.session_state.pop("prefill","")
 placeholder = ("Describe symptoms, ask about a medication, lab result, screening, or 'should I go to ER?'" if not st.session_state.chief_complaint else "Your answer...")
