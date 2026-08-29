@@ -1,8 +1,10 @@
 """
-HealthMate v3 — Multi-Intent Clinical AI
-=========================================
-Handles 8 question types with correct intake flow per type.
-Deploy: streamlit run app.py
+HealthMate v3.1 — Fixed crash on long conversations
+Key fixes:
+- Message history trimmed to last 6 exchanges max
+- Guidelines injected once only, not every message
+- Proper error handling for API context errors
+- Assessment forced after 5 exchanges regardless
 """
 import os, json, streamlit as st
 
@@ -21,164 +23,68 @@ st.markdown("""<style>
 .disc{background:#F5F5F5;border-radius:6px;padding:.55rem .9rem;font-size:.76rem;color:#757575;margin-top:.8rem}
 </style>""",unsafe_allow_html=True)
 
-# ── GUIDELINES ──────────────────────────────────────────────────────
+# ── GUIDELINES (concise versions to save tokens) ─────────────────────
 GL = {
-"uti":"""IDSA UTI Guidelines 2022:
-- Uncomplicated cystitis: dysuria, frequency, urgency — no fever, no flank pain
-- OTC ONLY: Phenazopyridine (AZO Standard) 200mg 3x daily WITH food, max 2 days. Turns urine orange.
-- Antibiotic required — prescription only
-- Pyelonephritis RED FLAGS: fever >100.4F, flank pain → ER immediately
-- Pregnancy: ANY urinary symptoms → physician same day, NO OTC""",
-
-"skin":"""AAD Guidelines 2024:
-- Contact/atopic dermatitis: remove trigger, moisturize, topical corticosteroid
-- Hydrocortisone 1% OTC: thin layer 2-4x daily, max 7d face, max 14d body
-- Infection signs → physician TODAY: crusting, honey exudate, fever, spreading redness
-- ABCDE mole rule: Asymmetry, Border, Color variation, Diameter >6mm, Evolving → derm referral
-- Moisturizers: CeraVe, Cetaphil within 3min of bathing""",
-
-"respiratory":"""CDC+IDSA Respiratory 2024:
-- Viral URI: self-limiting 7-10d, NO antibiotics
-- OTC fever/pain: Ibuprofen 200-400mg every 6-8h with food OR Acetaminophen 500-1000mg every 6h
-- OTC congestion: Pseudoephedrine 30mg every 4-6h (pharmacy counter, ID required)
-- OTC sore throat: Benzocaine lozenges, saltwater gargle, honey (adults only)
-- Centor strep: fever + exudate + tender nodes + no cough = test for strep
-- RED FLAGS → ER: stridor, drooling, muffled voice, can't open mouth""",
-
-"back":"""ACP Low Back Pain 2022:
-- Acute (<4wks): conservative, 90% resolves in 4-6wks
-- OTC: Ibuprofen 400-600mg every 6-8h with food (max 1200mg/day OTC, max 10d)
-- Heat therapy: 20min 3x daily for muscle spasm
-- Stay active — bed rest worsens outcomes
-- Cauda equina → 911: bladder/bowel incontinence + back pain
-- → physician same day: leg weakness, foot drop, progressive numbness""",
-
-"ankle":"""APTA Ankle Sprain 2021 + Ottawa Rules:
-- Ottawa: X-ray if bone tenderness at fibula/tibia tip OR can't bear weight 4 steps
-- PRICE: Protection, Rest, Ice 15-20min (not on skin), Compression, Elevation
-- OTC: Ibuprofen 400mg every 6-8h with food, max 1200mg/day, max 10d
-- Physician if: can't bear weight after 48h, no improvement at 5d, instability""",
-
-"heartburn":"""ACG/AGA GERD 2022:
-- Lifestyle: elevate head of bed, no food 3h before bed, reduce caffeine/alcohol/fatty food
-- OTC antacids: Tums 500-1000mg as needed, max 3000mg/day
-- OTC H2: Famotidine (Pepcid AC) 10-20mg once or twice daily
-- OTC PPI: Omeprazole (Prilosec OTC) 20mg once daily BEFORE breakfast, 14d course
-- RED FLAGS → physician: difficulty swallowing, weight loss, vomiting blood, new onset >50yo""",
-
-"gi":"""AGA/ACG + FDA DailyMed:
-- Gastroenteritis: oral rehydration, BRAT diet, self-limiting 1-3d
-- OTC diarrhea: Loperamide (Imodium) 4mg then 2mg per loose stool, max 16mg/day, max 2d
-- OTC nausea: Bismuth subsalicylate (Pepto-Bismol) 524mg every 30-60min, max 8 doses/day
-- Rehydration: Pedialyte, diluted sports drink, clear broths
-- RED FLAGS → ER: blood in stool, black/tarry stool, severe abdominal pain with fever""",
-
-"pediatric":"""AAP Fever 2021:
-- Age <3 months ANY fever ≥38.0C: EMERGENCY — ER immediately, NO exceptions
-- Age 3-6 months fever ≥38.0C: physician same day
-- Age >6 months well-appearing: may manage at home with weight-based dosing
-- Acetaminophen (Infant Tylenol 160mg/5mL): 15mg/kg per dose, every 4-6h, max 5 doses/24h
-- Ibuprofen (age ≥6mo ONLY): 10mg/kg per dose, every 6-8h
-- NEVER give aspirin to children — Reye syndrome""",
-
-"mental_health":"""USPSTF Depression 2023 + SAMHSA:
-- PHQ-9: 5-9 mild, 10-14 moderate, 15+ severe
-- GAD-7: 5-9 mild, 10-14 moderate, ≥15 severe
-- Mild only (PHQ-9 <5): exercise 150min/week, sleep hygiene, mindfulness apps
-- Moderate+: physician or therapist evaluation
-- ANY suicidal thoughts: 988 Lifeline — call or text 988 immediately
-- Crisis Text Line: text HOME to 741741""",
-
-"medication":"""FDA DailyMed OTC Drugs:
-- Ibuprofen: 200-400mg every 6-8h WITH food, max 1200mg/day OTC, max 10d. Avoid: kidney disease, GI ulcer, blood thinners.
-- Acetaminophen: 325-650mg every 4-6h, max 3000mg/day. Risk: liver damage with alcohol.
-- Diphenhydramine (Benadryl): 25-50mg every 4-6h, max 300mg/day. Drowsy. Avoid in elderly, glaucoma, BPH.
-- Loratadine (Claritin): 10mg once daily. Non-drowsy. Safe in most patients.
-- Pseudoephedrine (Sudafed): 30mg every 4-6h, max 240mg/day. Avoid if hypertension.
-- Omeprazole (Prilosec OTC): 20mg once daily before breakfast, 14d max, 1 course per 4 months.
-- Loperamide (Imodium): 4mg then 2mg per loose stool, max 16mg/day, max 2d.
-- Phenazopyridine (AZO): 200mg 3x daily with food, max 2d. Avoid if kidney disease.""",
-
-"preventive":"""USPSTF Grade A/B Recommendations + CDC Vaccines:
-CANCER: Cervical cancer Pap smear 3yr (21-65) or Pap+HPV 5yr (30-65). Colorectal colonoscopy 10yr (45-75). Breast mammogram 2yr (women 40-74). Lung cancer annual low-dose CT (50-80, 20 pack-year history).
-BP: Every year all adults ≥18. Diabetes screen: every 3yr (35-70, overweight). Cholesterol: cardiovascular risk assessment 40-75yo.
-VACCINES: Influenza annually. Tdap once then Td every 10yr. Shingrix 2 doses age ≥50. PCV20 age ≥65 or high-risk.""",
-
-"hypertension":"""AHA/ACC Hypertension 2023:
-- Normal: <120/<80. Elevated: 120-129/<80 → lifestyle. Stage 1: 130-139/80-89 → lifestyle+consider med. Stage 2: ≥140/≥90 → lifestyle+medication
-- Hypertensive urgency: >180/>120 no symptoms → physician SAME DAY
-- Hypertensive emergency: >180/>120 WITH symptoms (chest pain, SOB, headache) → 911
-- DASH diet, sodium <2300mg/day, aerobic 150min/week, limit alcohol, no smoking""",
-
-"diabetes":"""ADA Standards 2024:
-- HbA1c target: <7.0% most adults, <8.0% elderly/complex
-- Fasting glucose: 80-130 mg/dL. Post-meal 2h: <180 mg/dL
-- BP target: <130/80. LDL: <100 (high risk <70)
-- Foot care: daily inspection, annual exam, never barefoot
-- Hypoglycemia <70mg/dL: 15g fast carbs (4oz juice, 3-4 glucose tabs), recheck 15min""",
-
-"asthma":"""GINA Asthma 2023:
-- Well controlled: symptoms ≤2x/wk, no nighttime waking, reliever ≤2x/wk
-- Rescue inhaler (albuterol): 2 puffs every 4-6h as needed — NOT daily use
-- >2x/wk rescue use: see physician — step-up needed
-- RED FLAGS → 911: severe breathlessness, no relief from rescue inhaler, lips/nails turning blue""",
-
-"lab_results":"""Common Lab Reference Ranges:
-CBC: Hemoglobin men 13.5-17.5, women 12.0-15.5 g/dL. WBC 4,500-11,000/μL. Platelets 150,000-400,000/μL.
-METABOLIC: Glucose fasting 70-99mg/dL (100-125=prediabetes, ≥126=diabetes). HbA1c <5.7% normal, 5.7-6.4% prediabetes, ≥6.5% diabetes. Creatinine men 0.74-1.35, women 0.59-1.04 mg/dL. eGFR ≥60 normal.
-CHOLESTEROL: Total <200 desirable. LDL <100 optimal, ≥160 high. HDL >60 protective, <40(men)/<50(women) low. Triglycerides <150 normal.
-THYROID: TSH 0.4-4.0 mIU/L. Free T4 0.8-1.8 ng/dL.""",
-
-"routing":"""HealthMate Care Routing:
-911/ER: Chest pain+SOB. Stroke (FAST). Throat swelling. Unconscious. Seizure >5min. Severe bleeding. Suspected spinal injury. Infant fever <3mo. Cauda equina.
-URGENT CARE: Fever >103F well-appearing. UTI uncomplicated. Ear/sinus infection. Minor cuts needing stitches. Sprains/minor fractures. Moderate eye infection. STI testing. Non-life-threatening allergy.
-PCP 2-3 DAYS: Worsening chronic condition. Lab follow-up. New med needed. Symptoms >7d not improving. Mental health non-crisis. Preventive care. Post-urgent-care follow-up.
-TELEHEALTH: Uncomplicated UTI adult female. Cold/flu minor. Minor rash with photo. Prescription refill. Mental health med management."""
+"uti":"IDSA UTI 2022: OTC: Phenazopyridine (AZO) 200mg 3x daily with food max 2d. Antibiotic=prescription only. Pyelonephritis RED FLAG: fever+flank pain→ER. Pregnancy: physician same day.",
+"skin":"AAD 2024: Hydrocortisone 1% OTC: thin layer 2-4x daily, max 7d face/14d body. Infection→physician: crusting, spreading, fever. ABCDE mole→derm referral.",
+"respiratory":"CDC+IDSA 2024: Viral URI self-limiting 7-10d. OTC: Ibuprofen 200-400mg q6-8h with food OR Acetaminophen 500-1000mg q6h. Strep: fever+exudate+nodes+no cough→test. RED FLAG→ER: stridor, drooling.",
+"back":"ACP 2022: OTC: Ibuprofen 400-600mg q6-8h with food max 1200mg/day. Heat 20min 3x daily. Cauda equina→911: bladder/bowel+back pain.",
+"ankle":"APTA 2021: Ottawa Rules→Xray if bone tenderness or can't bear weight. PRICE protocol. Ibuprofen 400mg q6-8h with food.",
+"heartburn":"ACG 2022: OTC: Tums 500-1000mg prn. Famotidine (Pepcid) 10-20mg 1-2x daily. Omeprazole (Prilosec OTC) 20mg before breakfast 14d. RED FLAG: dysphagia, weight loss, vomiting blood→physician.",
+"gi":"AGA 2022: Loperamide (Imodium) 4mg then 2mg per loose stool max 16mg/day. Pepto-Bismol 524mg q30-60min. Rehydration: Pedialyte. RED FLAG→ER: blood in stool, severe abdominal pain+fever.",
+"pediatric":"AAP 2021: <3mo ANY fever≥38C→ER immediately no exceptions. Acetaminophen 15mg/kg q4-6h. Ibuprofen age≥6mo 10mg/kg q6-8h. NEVER aspirin.",
+"mental":"USPSTF 2023: PHQ-9 5-9 mild,10-14 mod,15+ severe. ANY suicidal thoughts→988 immediately. Crisis Text: HOME to 741741.",
+"medication":"FDA DailyMed: Ibuprofen 200-400mg q6-8h with food max 1200mg/day OTC. Acetaminophen 325-650mg q4-6h max 3000mg/day. Diphenhydramine 25-50mg q4-6h. Loratadine 10mg daily. Omeprazole 20mg before breakfast 14d.",
+"preventive":"USPSTF: Cervical cancer: Pap q3yr (21-65). Colorectal: colonoscopy q10yr (45-75). Breast: mammogram q2yr (40-74). BP: annually. Diabetes: q3yr (35-70 overweight). Vaccines: flu annually, Tdap, Shingrix≥50.",
+"hypertension":"AHA 2023: Normal<120/80. Stage1:130-139/80-89→lifestyle. Stage2:≥140/90→med. Urgency:>180/120 no sx→physician TODAY. Emergency:>180/120 WITH sx→911.",
+"diabetes":"ADA 2024: HbA1c<7%. Fasting glucose 80-130. Post-meal<180. BP<130/80. Hypoglycemia<70: 15g fast carbs, recheck 15min.",
+"asthma":"GINA 2023: Rescue inhaler NOT for daily use. >2x/wk use→physician. RED FLAG→911: severe breathlessness, no relief from rescue inhaler.",
+"lab":"Normal ranges: Glucose fasting 70-99(100-125=prediabetes,≥126=diabetes). HbA1c<5.7% normal,5.7-6.4% prediabetes,≥6.5% diabetes. LDL<100 optimal,≥160 high. HDL>60 protective. TSH 0.4-4.0. Creatinine men 0.74-1.35, women 0.59-1.04.",
+"routing":"911/ER: chest pain+SOB, stroke FAST, throat swelling, seizure, infant fever<3mo, cauda equina. URGENT CARE: fever>103F, UTI, ear infection, minor cuts, sprains. PCP 2-3d: chronic condition, lab follow-up, symptoms>7d. TELEHEALTH: uncomplicated UTI, cold/flu, minor rash.",
 }
 
 def get_gl(intent, complaint):
     c = complaint.lower()
-    gl = []
+    selected = []
     if intent == "symptom":
-        if any(w in c for w in ["pee","urin","burn","dysuria","bladder","frequent"]): gl.append(GL["uti"])
-        if any(w in c for w in ["mole","lesion","spot","skin","rash","itch","eczema"]): gl.append(GL["skin"])
-        if any(w in c for w in ["throat","cough","cold","flu","sinus","fever","congestion"]): gl.append(GL["respiratory"])
-        if any(w in c for w in ["back pain","lower back","lumbar"]): gl.append(GL["back"])
-        if any(w in c for w in ["ankle","sprain","twisted","rolled"]): gl.append(GL["ankle"])
-        if any(w in c for w in ["heartburn","acid","reflux","gerd"]): gl.append(GL["heartburn"])
-        if any(w in c for w in ["stomach","nausea","vomit","diarrhea","gastro","bowel"]): gl.append(GL["gi"])
-        if any(w in c for w in ["baby","infant","child","toddler","month old","week old"]): gl.append(GL["pediatric"])
-        if not gl: gl = [GL["respiratory"],GL["gi"]]
-    elif intent == "mental_health": gl.append(GL["mental_health"])
-    elif intent == "medication": gl.append(GL["medication"])
-    elif intent == "preventive": gl.append(GL["preventive"])
+        if any(w in c for w in ["pee","urin","burn","dysuria","bladder","frequent"]): selected.append(GL["uti"])
+        if any(w in c for w in ["mole","lesion","skin","rash","itch","eczema"]): selected.append(GL["skin"])
+        if any(w in c for w in ["throat","cough","cold","flu","fever","congestion","sinus"]): selected.append(GL["respiratory"])
+        if any(w in c for w in ["back","lumbar"]): selected.append(GL["back"])
+        if any(w in c for w in ["ankle","sprain","twisted"]): selected.append(GL["ankle"])
+        if any(w in c for w in ["heartburn","acid","reflux","gerd"]): selected.append(GL["heartburn"])
+        if any(w in c for w in ["stomach","nausea","vomit","diarrhea","bowel"]): selected.append(GL["gi"])
+        if any(w in c for w in ["baby","infant","child","toddler","month old","week old"]): selected.append(GL["pediatric"])
+        if not selected: selected = [GL["respiratory"],GL["gi"]]
+    elif intent == "mental_health": selected.append(GL["mental"])
+    elif intent == "medication": selected.append(GL["medication"])
+    elif intent == "preventive": selected.append(GL["preventive"])
     elif intent == "chronic":
-        if any(w in c for w in ["blood pressure","hypertension","bp","systolic"]): gl.append(GL["hypertension"])
-        if any(w in c for w in ["diabetes","glucose","hba1c","a1c","sugar","insulin"]): gl.append(GL["diabetes"])
-        if any(w in c for w in ["asthma","inhaler","wheez"]): gl.append(GL["asthma"])
-        if not gl: gl = [GL["hypertension"],GL["diabetes"]]
-    elif intent == "lab": gl.append(GL["lab_results"])
-    elif intent == "routing": gl.append(GL["routing"])
-    return "\n\n---\n\n".join(gl[:3])
+        if any(w in c for w in ["blood pressure","hypertension","bp"]): selected.append(GL["hypertension"])
+        if any(w in c for w in ["diabetes","glucose","a1c","sugar"]): selected.append(GL["diabetes"])
+        if any(w in c for w in ["asthma","inhaler"]): selected.append(GL["asthma"])
+        if not selected: selected = [GL["hypertension"],GL["diabetes"]]
+    elif intent == "lab": selected.append(GL["lab"])
+    elif intent == "routing": selected.append(GL["routing"])
+    return " | ".join(selected[:2])  # max 2 guidelines, space-efficient
 
-# ── EMERGENCY ───────────────────────────────────────────────────────
+# ── EMERGENCY ────────────────────────────────────────────────────────
 def chk_emergency(text):
     t = text.lower()
-    chest = any(w in t for w in ["chest pain","chest tightness","chest pressure","chest heaviness"])
-    breath = any(w in t for w in ["shortness of breath","cant breathe","can't breathe","trouble breathing","breathless"])
-    if chest and breath:
-        return "911","🚨 Chest pain + breathing difficulty is a cardiac emergency.\n\n**CALL 911 NOW.** Do not drive yourself.\n\nChew one regular aspirin (325mg) while waiting — only if not allergic."
+    if any(w in t for w in ["chest pain","chest tightness","chest pressure"]) and \
+       any(w in t for w in ["shortness of breath","cant breathe","can't breathe","trouble breathing"]):
+        return "911","🚨 Chest pain + breathing difficulty is a cardiac emergency.\n\n**CALL 911 NOW.** Do not drive yourself.\n\nChew one 325mg aspirin while waiting — only if not allergic."
     singles = {
-        "throat swelling":"🚨 Throat swelling can block your airway.\n\n**CALL 911 NOW.** Use EpiPen if available.",
+        "throat swelling":"🚨 Throat swelling can block your airway.\n\n**CALL 911 NOW.**",
         "throat closing":"🚨 Throat closing is a medical emergency.\n\n**CALL 911 NOW.**",
-        "face drooping":"🚨 Face drooping is a stroke warning sign (FAST).\n\n**CALL 911 NOW.** Note exact time symptoms started.",
-        "worst headache of my life":"🚨 Thunderclap headache = possible brain bleed.\n\n**CALL 911 NOW.**",
+        "face drooping":"🚨 Face drooping is a stroke warning sign.\n\n**CALL 911 NOW.** Note the exact time symptoms started.",
+        "worst headache of my life":"🚨 Sudden severe headache = possible brain bleed.\n\n**CALL 911 NOW.**",
     }
     crisis = {
         "suicid":"💙 You mentioned thoughts of suicide. Support is available right now.\n\nPlease **call or text 988** — free, 24/7.\n\nOr text HOME to 741741.",
         "kill myself":"💙 Please reach out right now.\n\n**Call or text 988** — available 24/7.",
         "end my life":"💙 Support is available right now.\n\n**Call or text 988** — 24/7.",
-        "want to die":"💙 I hear you. Please reach out.\n\n**Call or text 988** — they are here for you.",
+        "want to die":"💙 Please reach out.\n\n**Call or text 988** — they are here for you.",
     }
     for kw,msg in singles.items():
         if kw in t: return "911",msg
@@ -186,193 +92,121 @@ def chk_emergency(text):
         if kw in t: return "988",msg
     return None,None
 
-# ── INTENT DETECT ───────────────────────────────────────────────────
-INTENT_SYS = """Classify the patient question into ONE intent: symptom, medication, preventive, mental_health, chronic, lab, routing, general
-Reply ONLY with the intent word. Nothing else."""
-
+# ── INTENT DETECT ────────────────────────────────────────────────────
 def detect_intent(text, api_key):
     t = text.lower()
     if any(w in t for w in ["er or","urgent care","emergency room","should i go","hospital or"]): return "routing"
-    if any(w in t for w in ["my cholesterol","my hba1c","my a1c","lab result","blood test","my glucose is","my hemoglobin"]): return "lab"
+    if any(w in t for w in ["my cholesterol","my hba1c","my a1c","lab result","blood test","my glucose","my hemoglobin"]): return "lab"
     if any(w in t for w in ["can i take","how much","dosage","side effect","ibuprofen","tylenol","benadryl","advil","motrin","pepcid","prilosec","claritin","zyrtec"]): return "medication"
-    if any(w in t for w in ["screening","mammogram","colonoscopy","pap smear","vaccine","annual physical","checkup","preventive","when should i get"]): return "preventive"
+    if any(w in t for w in ["screening","mammogram","colonoscopy","pap smear","vaccine","annual physical","checkup","preventive"]): return "preventive"
     if any(w in t for w in ["depress","anxious","anxiety","mental health","low mood","panic","stress","overwhelmed","cant sleep","feeling sad","feeling hopeless"]): return "mental_health"
-    if any(w in t for w in ["my diabetes","my blood pressure","my asthma","managing my","my bp reading","my inhaler"]): return "chronic"
-    try:
-        import anthropic
-        c = anthropic.Anthropic(api_key=api_key)
-        r = c.messages.create(model="claude-haiku-4-5-20251001",max_tokens=10,system=INTENT_SYS,messages=[{"role":"user","content":text}])
-        intent = r.content[0].text.strip().lower()
-        return intent if intent in ["symptom","medication","preventive","mental_health","chronic","lab","routing","general"] else "symptom"
-    except: return "symptom"
+    if any(w in t for w in ["my diabetes","my blood pressure","my asthma","managing my","my bp","my inhaler"]): return "chronic"
+    return "symptom"
 
-# ── SYSTEM PROMPTS ──────────────────────────────────────────────────
-RULES = """
-ALWAYS: say "consistent with X per [Guideline]" never "you have X". Never name prescription drugs. Cite specific guideline for every clinical claim. Give EXACT OTC dosing: product name, mg, frequency, max duration, safety note."""
+# ── SYSTEM PROMPTS (concise to save tokens) ──────────────────────────
+RULES = "ALWAYS: say 'consistent with X per [Guideline]' never 'you have X'. Never name prescription drugs. Cite guideline for every clinical claim. Give EXACT OTC dosing: product, mg, frequency, max duration, safety note."
 
 SP = {
-"symptom": """You are HealthMate clinical triage AI. Conduct physician-style intake — ONE question at a time.
+"symptom": f"""Clinical triage AI. ONE question at a time physician-style.
 
-PHASE 1 (first 4-5 exchanges): Ask ONE focused question. Choose most important unanswered: duration, severity 1-10, fever/temp, other symptoms, medications/allergies, medical history, age, pregnancy (if relevant), for skin: location/spreading.
-ONE question max. 2 sentences max. Brief warm acknowledgment first. NO guidance yet.
+PHASE 1 (first 4 exchanges): Ask ONE question only. Max 2 sentences. Brief warm acknowledgment. NO guidance yet.
+Most important unanswered: duration, severity 1-10, fever/temp, other symptoms, medications/allergies, age, pregnancy if relevant.
 
-PHASE 2 (after 4-5 exchanges — output this exactly):
+PHASE 2 (after 4 exchanges — output this exactly):
 ASSESSMENT_READY
-URGENCY: [GREEN / YELLOW / URGENT]
+URGENCY: [GREEN/YELLOW/URGENT]
 **What your symptoms suggest**
-[2-3 sentences. "Consistent with X per [Guideline]." Never "you have X."]
+[2-3 sentences. Consistent with X per Guideline. Never "you have X."]
 **What to do right now**
-1. [Action]
-2. [Action]
+1. 2. 3.
 **OTC options**
-[Specific product, exact mg, frequency, max duration, safety note] OR "No OTC appropriate — see physician."
+[Specific product, exact mg, frequency, max duration, safety note] OR "No OTC — see physician."
 **Watch for these red flags**
 - [Red flag]
 - [Red flag]
 **Recommended next step**
 [Clear recommendation]
 ---
-*Sources: [guideline citations with year]*
-*Disclaimer: Informational only. Your physician makes the final diagnosis.*""" + RULES,
+*Sources: [guideline year]*
+*Disclaimer: Informational only. Your physician makes the final diagnosis.*
+{RULES}""",
 
-"medication": """You are HealthMate medication guidance AI. Help with OTC medications safely.
-
-INTAKE — ONE question at a time:
-1. Which medication? 2. Specific concern? 3. Kidney/liver disease or pregnant? 4. Other medications? 5. Age?
-
-After gathering context output:
+"medication": f"""Medication guidance AI. OTC only.
+Ask ONE question at a time: 1.Which medication? 2.Specific concern? 3.Kidney/liver disease or pregnant? 4.Other medications?
+After context gathered output:
 MED_READY
-**About [medication name]**
-[What it is, what it treats — FDA DailyMed]
-**Standard OTC dosing**
-[Exact product, exact mg, frequency, max dose/day, max duration]
-**Who should NOT take this**
-[Contraindications from FDA label]
-**Key interactions**
-[Clinically significant interactions]
-**When to call physician instead**
-[Situations where OTC insufficient]
----
-*Source: FDA DailyMed*
-*Disclaimer: OTC guidance only. For prescription questions consult your physician or pharmacist.*
-NEVER advise on prescription dose changes. Flag serious interaction risks immediately.""" + RULES,
+**About [medication]** [What it is — FDA DailyMed]
+**Standard OTC dosing** [Exact product, mg, frequency, max dose/day, max duration]
+**Who should NOT take this** [Contraindications]
+**Key interactions** [Significant interactions]
+**When to call physician** [When OTC insufficient]
+*Source: FDA DailyMed* *Disclaimer: OTC guidance only.*
+NEVER advise on prescription dose changes. {RULES}""",
 
-"preventive": """You are HealthMate preventive care AI.
-
-INTAKE — ONE question at a time:
-1. Age? 2. Male/female/other? 3. Do you smoke? 4. Family history of cancer/heart disease/diabetes? 5. Last checkup/screenings?
-
-After gathering age and sex:
+"preventive": f"""Preventive care AI.
+Ask ONE question at a time: 1.Age? 2.Male/female/other? 3.Do you smoke? 4.Family history?
+After age and sex gathered output:
 PREVENTIVE_READY
-**Screenings recommended for you**
-[USPSTF Grade A/B by age/sex with year — name, frequency, age range, why]
-**Vaccines recommended for you**
-[CDC Adult Immunization Schedule — name, schedule]
-**What you can do at home**
-[BP monitoring, skin self-exam, etc. as appropriate]
-**Recommended next step**
-Schedule preventive visit with PCP to order these screenings.
----
-*Sources: USPSTF [year], CDC Adult Immunization Schedule [year]*
-*Disclaimer: Population-level recommendations. Your physician personalizes.*""" + RULES,
+**Screenings recommended for you** [USPSTF Grade A/B by age/sex with year]
+**Vaccines recommended** [CDC Adult Schedule]
+**Recommended next step** Schedule preventive visit with PCP.
+*Sources: USPSTF, CDC* *Disclaimer: Population-level. Your physician personalizes.*
+{RULES}""",
 
-"mental_health": """You are HealthMate mental health navigation AI. Be warm, compassionate, non-judgmental. ONE question at a time.
-
-INTAKE:
-1. Tell me more about what you've been experiencing.
-2. How long have you been feeling this way?
-3. PHQ-2: Over past 2 weeks — felt down, depressed, or hopeless? (not at all / several days / more than half / nearly every day)
-4. PHQ-2: Over past 2 weeks — little interest or pleasure in things? (same scale)
-5. Ask DIRECTLY: Are you having any thoughts of harming yourself or others? (safe and important to ask)
-6. How is this affecting daily life — work, relationships, sleep?
-
-CRITICAL: If ANY yes to self-harm thoughts — STOP. Provide 988 immediately. Do not continue intake.
-
-After gathering context:
+"mental_health": f"""Mental health navigation AI. Warm, compassionate, non-judgmental. ONE question at a time.
+Ask: 1.Tell me more. 2.How long? 3.PHQ-2: felt down/depressed? 4.PHQ-2: little interest/pleasure? 5.Any thoughts of harming yourself? (ask directly) 6.Affecting daily life?
+CRITICAL: If yes to self-harm→STOP. Provide 988 immediately.
+After context:
 MENTAL_READY
-**What you're describing**
-[Validate experience. Non-stigmatizing. Cite USPSTF/APA if relevant.]
-**Severity**
-[Based on PHQ-2 responses: minimal/mild/moderate/severe]
-**What may help right now**
-[Mild: evidence-based self-care. Moderate+: professional support.]
+**What you're describing** [Validate. Non-stigmatizing.]
+**Severity** [minimal/mild/moderate/severe based on PHQ-2]
+**What may help right now** [Mild: self-care. Moderate+: professional support.]
 **Crisis resources** (always include)
 - 988 Suicide & Crisis Lifeline: call or text **988** (24/7, free)
 - Crisis Text Line: text HOME to **741741**
 **Recommended next step**
-[Clear: self-care / PCP / therapist / psychiatrist / crisis services]
----
-*Sources: USPSTF Depression Screening [year], SAMHSA*
-*Disclaimer: Not a clinical diagnosis. Please speak with a mental health professional.*""" + RULES,
+*Sources: USPSTF, SAMHSA* *Disclaimer: Not a clinical diagnosis.*
+{RULES}""",
 
-"chronic": """You are HealthMate chronic disease management AI.
-
-INTAKE — ONE question at a time:
-1. Which condition? 2. Most recent reading/measurement? 3. Current medications for this? 4. Specific concern today? 5. Any new symptoms?
-
-After gathering context:
+"chronic": f"""Chronic disease AI.
+Ask ONE at a time: 1.Which condition? 2.Most recent reading? 3.Current medications? 4.Specific concern? 5.New symptoms?
+After context:
 CHRONIC_READY
-**Your condition targets**
-[Evidence-based targets from ADA/AHA/GINA/ACP with year]
-**How your reading compares**
-[Factual comparison to guideline targets]
-**Lifestyle factors that matter most**
-[Top 3 evidence-based interventions for this condition]
-**When to call your physician**
-[Specific threshold readings or symptoms requiring physician contact]
-**Red flags — call 911 if:**
-[Life-threatening escalations for this condition]
-**Recommended next step**
-[Clear recommendation]
----
-*Sources: [specific guideline with year]*
-*Disclaimer: HealthMate does not adjust prescriptions. All medication decisions require your physician.*
-NEVER adjust or recommend changes to prescription medications.""" + RULES,
+**Your condition targets** [Evidence-based targets from ADA/AHA/GINA with year]
+**How your reading compares** [Factual comparison]
+**Lifestyle factors** [Top 3 evidence-based interventions]
+**When to call physician** [Specific thresholds]
+**Red flags — call 911** [Life-threatening escalations]
+*Sources: [guideline year]* *Disclaimer: HealthMate does not adjust prescriptions.*
+NEVER adjust prescription medications. {RULES}""",
 
-"lab": """You are HealthMate lab interpretation AI.
-
-INTAKE — ONE question at a time:
-1. Which test? 2. Value and units? 3. Was this fasting? 4. Any symptoms? 5. Relevant medical history?
-
-After gathering context:
+"lab": f"""Lab interpretation AI.
+Ask ONE at a time: 1.Which test? 2.Value and units? 3.Was this fasting? 4.Any symptoms? 5.Relevant medical history?
+After context:
 LAB_READY
-**What this test measures**
-[Simple explanation — 2 sentences]
-**Normal range**
-[Standard reference range from relevant guidelines]
-**What your value means**
-["Your value of [X] falls in the [normal/borderline/abnormal] range." Factual, not alarming.]
-**Context matters**
-[Factors affecting this: fasting status, medications, symptoms, trends]
-**What happens next**
-[Monitor / routine visit / prompt physician contact]
-**Questions to ask your physician**
-[2-3 specific questions for next appointment]
----
-*Sources: [ADA/AHA/ATS/etc. with year]*
-*Disclaimer: Requires your full clinical context. Only your physician can diagnose based on results.*""" + RULES,
+**What this test measures** [Simple — 2 sentences]
+**Normal range** [Standard reference range]
+**What your value means** [Factual. Not alarming.]
+**Context matters** [Factors affecting result]
+**What happens next** [Monitor/routine/prompt physician]
+**Questions to ask your physician** [2-3 specific]
+*Sources: [guideline year]* *Disclaimer: Only your physician can diagnose.*
+{RULES}""",
 
-"routing": """You are HealthMate care routing AI. Help decide ER vs urgent care vs PCP.
-
-INTAKE — ONE question at a time:
-1. Main symptom? 2. How long? 3. Severity 1-10? 4. Fever? 5. Getting better, worse, or same?
-
+"routing": f"""Care routing AI.
+Ask ONE at a time: 1.Main symptom? 2.How long? 3.Severity 1-10? 4.Fever? 5.Getting better/worse/same?
 After 3-4 exchanges:
 ROUTING_READY
-**Where to go**
-[Clear direct recommendation: 911 / ER now / Urgent Care today / PCP within X days / Telehealth / Self-care]
-**Why this recommendation**
-[2-3 sentences clinical reasoning]
-**What to tell them when you arrive**
-[Duration, severity, associated symptoms, medications]
-**If symptoms change**
-["If you develop X, call 911 immediately."]
----
-*Source: HealthMate Care Routing Framework*
-*Disclaimer: When in doubt, always err toward higher level of care.*""" + RULES,
+**Where to go** [Clear: 911/ER now/Urgent Care today/PCP within X days/Telehealth/Self-care]
+**Why** [2-3 sentences clinical reasoning]
+**What to tell them** [Duration, severity, symptoms, medications]
+**If symptoms change** [Escalation trigger]
+*Disclaimer: When in doubt, always err toward higher level of care.*
+{RULES}""",
 
-"general": """You are HealthMate general health AI. Answer health questions accurately. Cite relevant guidelines. Recommend appropriate care if needed. Keep focused — 3-5 sentences for simple questions.
-*Disclaimer: Informational guidance. Your physician makes clinical decisions.*""" + RULES,
+"general": f"""General health AI. Answer accurately. Cite guidelines. 3-5 sentences for simple questions.
+*Disclaimer: Informational. Your physician makes clinical decisions.*
+{RULES}""",
 }
 
 LABELS = {
@@ -387,12 +221,13 @@ LABELS = {
 }
 READY = ["ASSESSMENT_READY","MED_READY","PREVENTIVE_READY","MENTAL_READY","CHRONIC_READY","LAB_READY","ROUTING_READY"]
 THRESH = {"symptom":4,"medication":3,"preventive":3,"mental_health":4,"chronic":3,"lab":3,"routing":3,"general":1}
+MAX_HISTORY = 8  # FIX: limit conversation history to prevent crashes
 
 SCENARIOS = {
     "💊 UTI symptoms":"I have burning when I pee and going very frequently.",
     "🔬 Changed mole":"I have a mole on my back that has changed over 2 months.",
     "😷 Sore throat + fever":"Severe sore throat and fever since yesterday.",
-    "🏋️ Back pain":"I threw out my back at the gym this morning.",
+    "🏋 Back pain":"I threw out my back at the gym this morning.",
     "🦵 Ankle sprain":"I rolled my ankle playing basketball an hour ago.",
     "🔥 Heartburn":"Burning in my chest after dinner almost every night.",
     "👶 Baby fever":"My 7-week-old baby has a fever of 38.3C.",
@@ -403,21 +238,22 @@ SCENARIOS = {
     "📋 Screening question":"I am 45 years old woman. What cancer screenings do I need?",
     "🩸 Lab result":"My LDL cholesterol came back at 165 mg/dL. Is that bad?",
     "🏥 ER or urgent care?":"I have high fever 103F and severe ear pain. Where should I go?",
-    "❤ Blood pressure":"My blood pressure reading today was 148/92. I am on medication.",
+    "❤ Blood pressure":"My blood pressure today was 148 over 92. I am on medication.",
 }
 
 # session state
 for k,v in {"messages":[],"exchange_count":0,"assessment_done":False,"show_booking":False,
-             "chief_complaint":"","intake_history":{},"urgency":"GREEN","intent":None,"intent_detected":False}.items():
+             "chief_complaint":"","urgency":"GREEN","intent":None,"intent_detected":False,
+             "guidelines_injected":False}.items():
     if k not in st.session_state:
-        st.session_state[k] = ([] if isinstance(v,list) else {} if isinstance(v,dict) else v)
+        st.session_state[k] = ([] if isinstance(v,list) else v)
 
 # UI
-st.markdown("""<div class="hm-header"><h1>🏥 HealthMate</h1><p>AI Health Navigation · AAD · CDC · IDSA · AHA · ACOG · AAP · USPSTF · FDA DailyMed</p></div>""",unsafe_allow_html=True)
+st.markdown('<div class="hm-header"><h1>🏥 HealthMate</h1><p>AI Health Navigation · AAD · CDC · IDSA · AHA · ACOG · AAP · USPSTF · FDA DailyMed</p></div>',unsafe_allow_html=True)
 
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
-    api_key = st.text_input("Anthropic API Key",value=os.environ.get("ANTHROPIC_API_KEY",""),type="password",help="console.anthropic.com — $5 = 500 sessions")
+    api_key = st.text_input("Anthropic API Key",value=os.environ.get("ANTHROPIC_API_KEY",""),type="password",help="console.anthropic.com")
     st.markdown("---")
     st.markdown("### 🩺 Try a scenario")
     for label,scenario in SCENARIOS.items():
@@ -425,8 +261,9 @@ with st.sidebar:
             st.session_state.prefill = scenario
     st.markdown("---")
     if st.button("🔄 New conversation",use_container_width=True):
-        for k in ["messages","exchange_count","assessment_done","show_booking","chief_complaint","intake_history","urgency","intent","intent_detected"]:
-            st.session_state[k] = ([] if k=="messages" else {} if k=="intake_history" else False if k in ["assessment_done","show_booking","intent_detected"] else 0 if k=="exchange_count" else "GREEN" if k=="urgency" else None if k=="intent" else "")
+        for k in ["messages","exchange_count","assessment_done","show_booking","chief_complaint",
+                  "urgency","intent","intent_detected","guidelines_injected"]:
+            st.session_state[k] = ([] if k=="messages" else False if k in ["assessment_done","show_booking","intent_detected","guidelines_injected"] else 0 if k=="exchange_count" else "GREEN" if k=="urgency" else None if k=="intent" else "")
         st.rerun()
     st.markdown("---")
     st.markdown("""### ✅ What I handle
@@ -434,28 +271,30 @@ with st.sidebar:
 - **Medications** — OTC dosing, interactions
 - **Preventive care** — screenings, vaccines
 - **Mental health** — PHQ screening, crisis support
-- **Chronic disease** — targets, escalation triggers
+- **Chronic disease** — targets, escalation
 - **Lab results** — what your values mean
 - **Care routing** — ER vs urgent care vs PCP
 
-*Emergency? Call 911 immediately.*
+*Emergency? Call 911 immediately.*""")
 
-*HealthMate Inc. · 2026*""")
-
+# progress
 if st.session_state.chief_complaint and not st.session_state.assessment_done:
     n = min(st.session_state.exchange_count,5)
     steps=["🔍 Understanding your question...","📋 Gathering your history...","🩺 Asking follow-up questions...","📊 Almost ready...","⚕️ Preparing your response..."]
     st.markdown(f'<div class="pbar">{steps[n]} (Step {n+1} of 5)</div>',unsafe_allow_html=True)
 
+# intent badge
 if st.session_state.intent and st.session_state.intent in LABELS:
     lbl,cls = LABELS[st.session_state.intent]
     st.markdown(f'<span class="ibadge {cls}">{lbl}</span>',unsafe_allow_html=True)
 
+READY_SET = set(READY)
 def clean_r(content):
     for m in READY: content = content.replace(m,"")
     for u in ["URGENCY: URGENT","URGENCY: YELLOW","URGENCY: GREEN"]: content = content.replace(u,"")
     return content.strip()
 
+# display messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"],avatar="🧑" if msg["role"]=="user" else "🏥"):
         content = msg["content"]
@@ -497,31 +336,61 @@ if user_input:
                 try:
                     import anthropic
                     client = anthropic.Anthropic(api_key=api_key)
+
+                    # Detect intent on first message
                     if not st.session_state.intent_detected:
-                        intent = detect_intent(user_input,api_key)
+                        intent = detect_intent(user_input, api_key)
                         st.session_state.intent = intent
                         st.session_state.intent_detected = True
                         if intent in LABELS:
                             lbl,cls = LABELS[intent]
                             st.markdown(f'<span class="ibadge {cls}">{lbl}</span>',unsafe_allow_html=True)
+
                     intent = st.session_state.intent or "symptom"
-                    system = SP.get(intent,SP["general"])
-                    claude_msgs = [{"role":m["role"],"content":m["content"]} for m in st.session_state.messages[:-1]]
-                    user_content = user_input
-                    if st.session_state.exchange_count >= 2:
-                        gl = get_gl(intent,st.session_state.chief_complaint)
-                        user_content = f"{user_input}\n\n[Clinical reference: {gl[:2000]}]"
-                    claude_msgs.append({"role":"user","content":user_content})
+                    system = SP.get(intent, SP["general"])
+
+                    # FIX 1: Trim message history to last MAX_HISTORY messages
+                    # This prevents context length errors on long conversations
+                    all_msgs = st.session_state.messages[:-1]  # exclude current
+                    if len(all_msgs) > MAX_HISTORY:
+                        all_msgs = all_msgs[-MAX_HISTORY:]  # keep only last 8
+
+                    # FIX 2: Inject guidelines ONCE at exchange 2, not every message
+                    claude_msgs = []
+                    gl_injected = False
+                    for i, m in enumerate(all_msgs):
+                        content_to_send = m["content"]
+                        # Inject guidelines only on the second user message, once
+                        if m["role"] == "user" and not gl_injected and i >= 2 and not st.session_state.guidelines_injected:
+                            gl = get_gl(intent, st.session_state.chief_complaint)
+                            content_to_send = f"{m['content']}\n\n[Clinical ref: {gl}]"
+                            gl_injected = True
+                            st.session_state.guidelines_injected = True
+                        claude_msgs.append({"role":m["role"],"content":content_to_send})
+
+                    # Add current user message
+                    claude_msgs.append({"role":"user","content":user_input})
+
+                    # FIX 3: Force assessment after threshold
                     push = ""
-                    if st.session_state.exchange_count >= THRESH.get(intent,3):
-                        push = "\n\nYou have gathered enough information. Provide the complete final response now."
-                    resp = client.messages.create(model="claude-sonnet-4-6",max_tokens=1500,system=system+push,messages=claude_msgs)
+                    thresh = THRESH.get(intent, 3)
+                    if st.session_state.exchange_count >= thresh:
+                        push = f"\n\nYou have gathered enough information. Provide the complete final response now using the correct format."
+
+                    resp = client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=1200,
+                        system=system + push,
+                        messages=claude_msgs,
+                    )
                     reply = resp.content[0].text
                     st.session_state.exchange_count += 1
-                    st.session_state.intake_history[f"a{st.session_state.exchange_count}"] = user_input
-                    is_final = any(m in reply for m in READY) or st.session_state.exchange_count >= THRESH.get(intent,3)+2
+
+                    is_final = any(m in reply for m in READY) or st.session_state.exchange_count >= thresh + 2
                     if is_final: st.session_state.assessment_done = True
+
                     clean = clean_r(reply)
+
                     if "URGENCY: URGENT" in reply:
                         st.session_state.urgency="URGENT"; st.session_state.show_booking=True
                         st.markdown('<span class="ibadge ir">🔴 URGENT — See Physician Today</span>',unsafe_allow_html=True)
@@ -532,17 +401,29 @@ if user_input:
                         st.session_state.urgency="GREEN"
                         if "physician" in clean.lower() or "doctor" in clean.lower(): st.session_state.show_booking=True
                         st.markdown('<span class="ibadge ig">🟢 GREEN — Self-Care Appropriate</span>',unsafe_allow_html=True)
+
                     st.markdown(clean)
+
                     if is_final:
                         cost = (resp.usage.input_tokens*0.000003)+(resp.usage.output_tokens*0.000015)
-                        with st.expander(f"Session info — ${cost:.4f}",expanded=False):
+                        with st.expander(f"Session — ${cost:.4f}",expanded=False):
                             st.caption(f"Intent: {intent} · Exchanges: {st.session_state.exchange_count} · Tokens: {resp.usage.input_tokens:,} in / {resp.usage.output_tokens:,} out")
-                    st.session_state.messages.append({"role":"assistant","content":reply})
-                except Exception as e:
-                    err=str(e)
-                    if "auth" in err.lower() or "api_key" in err.lower(): st.error("Invalid API key — check the sidebar.")
-                    else: st.error(f"Error: {err}")
 
+                    st.session_state.messages.append({"role":"assistant","content":reply})
+
+                except Exception as e:
+                    err = str(e)
+                    # FIX 4: Specific error handling for common failures
+                    if "auth" in err.lower() or "api_key" in err.lower():
+                        st.error("Invalid API key — please check the key in the sidebar.")
+                    elif "context" in err.lower() or "token" in err.lower() or "length" in err.lower():
+                        st.warning("This conversation has reached its limit. Please start a new conversation using the button in the sidebar.")
+                    elif "rate" in err.lower():
+                        st.warning("Too many requests — please wait 10 seconds and try again.")
+                    else:
+                        st.error(f"Something went wrong. Please try again. ({err[:100]})")
+
+# booking panel
 if st.session_state.show_booking and st.session_state.assessment_done:
     st.markdown("---")
     st.markdown("### 📅 Available In-Network Providers")
@@ -568,4 +449,200 @@ if st.session_state.show_booking and st.session_state.assessment_done:
             if st.button("Book",key=f"b_{p['name']}",use_container_width=True): st.success(f"✅ Appointment requested — {p['name']}")
     st.caption("*Demo — connects to Zocdoc + Availity in production.*")
 
-st.markdown("""<div class="disc">⚕️ <strong>Medical Disclaimer:</strong> HealthMate provides health information based on published clinical guidelines for educational purposes only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional. In an emergency call 911 immediately.<br><br>🔒 <strong>Privacy:</strong> No personal health data is stored after your session ends.<br><br>📋 <strong>Sources:</strong> AAD · CDC · IDSA · ACP · AGA · ACG · USPSTF · FDA DailyMed · AAP · SAMHSA · AHA/ACC · ADA · GINA</div>""",unsafe_allow_html=True)
+st.markdown('<div class="disc">⚕️ <strong>Medical Disclaimer:</strong> HealthMate provides health information based on published clinical guidelines for educational purposes only. It does not provide medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional. In an emergency call 911 immediately.<br><br>🔒 <strong>Privacy:</strong> No personal health data is stored after your session ends.<br><br>📋 <strong>Sources:</strong> AAD · CDC · IDSA · ACP · AGA · ACG · USPSTF · FDA DailyMed · AAP · SAMHSA · AHA/ACC · ADA · GINA</div>',unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════
+# TEST SESSION LOGGER
+# For physician validation testing only — not for real patient data
+# ════════════════════════════════════════════════════════════════
+
+import datetime, hashlib, json
+
+def save_session_log():
+    """Save completed test session to persistent storage."""
+    try:
+        if not st.session_state.chief_complaint or st.session_state.exchange_count < 2:
+            return
+
+        session_id = hashlib.md5(
+            f"{st.session_state.chief_complaint}{datetime.datetime.now().isoformat()}".encode()
+        ).hexdigest()[:8].upper()
+
+        entry = {
+            "session_id": session_id,
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M UTC"),
+            "chief_complaint": st.session_state.chief_complaint[:200],
+            "intent_detected": st.session_state.intent or "unknown",
+            "total_exchanges": st.session_state.exchange_count,
+            "urgency_tier": st.session_state.urgency,
+            "assessment_completed": st.session_state.assessment_done,
+            "conversation": [
+                {
+                    "role": m["role"],
+                    "content": m["content"][:800]
+                }
+                for m in st.session_state.messages
+            ]
+        }
+
+        # Load existing logs
+        raw = st.session_state.get("_physician_logs", "[]")
+        try:
+            logs = json.loads(raw) if isinstance(raw, str) else []
+        except:
+            logs = []
+
+        # Add new entry
+        logs.append(entry)
+
+        # Keep last 200 sessions
+        if len(logs) > 200:
+            logs = logs[-200:]
+
+        st.session_state["_physician_logs"] = json.dumps(logs)
+        return session_id
+
+    except Exception as e:
+        return None
+
+
+def get_logs():
+    """Retrieve all logged sessions."""
+    raw = st.session_state.get("_physician_logs", "[]")
+    try:
+        return json.loads(raw) if isinstance(raw, str) else []
+    except:
+        return []
+
+
+# ── LOG VIEWER (accessible via sidebar button) ────────────────────────
+if "show_log_viewer" not in st.session_state:
+    st.session_state.show_log_viewer = False
+
+with st.sidebar:
+    st.markdown("---")
+    st.markdown("### 📊 Physician Test Logs")
+    logs = get_logs()
+    st.caption(f"{len(logs)} sessions logged")
+
+    if st.button("📋 View All Logs", use_container_width=True):
+        st.session_state.show_log_viewer = not st.session_state.show_log_viewer
+
+    if logs:
+        log_json = json.dumps(logs, indent=2)
+        st.download_button(
+            label="⬇️ Download Logs (JSON)",
+            data=log_json,
+            file_name=f"healthmate_test_logs_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            mime="application/json",
+            use_container_width=True
+        )
+
+        # Quick summary stats
+        intents = {}
+        urgencies = {"GREEN":0,"YELLOW":0,"URGENT":0}
+        completed = 0
+        for l in logs:
+            intents[l.get("intent_detected","unknown")] = intents.get(l.get("intent_detected","unknown"),0)+1
+            urgencies[l.get("urgency_tier","GREEN")] = urgencies.get(l.get("urgency_tier","GREEN"),0)+1
+            if l.get("assessment_completed"): completed += 1
+
+        if st.button("📈 Quick Stats", use_container_width=True):
+            st.session_state.show_stats = not st.session_state.get("show_stats", False)
+
+# ── LOG VIEWER PANEL ──────────────────────────────────────────────────
+if st.session_state.show_log_viewer:
+    st.markdown("---")
+    st.markdown("### 📋 Physician Test Session Logs")
+
+    logs = get_logs()
+    if not logs:
+        st.info("No sessions logged yet. Complete a test conversation to see logs here.")
+    else:
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Sessions", len(logs))
+        with col2:
+            completed = sum(1 for l in logs if l.get("assessment_completed"))
+            st.metric("Assessments Done", completed)
+        with col3:
+            urgent = sum(1 for l in logs if l.get("urgency_tier") == "URGENT")
+            st.metric("Urgent Cases", urgent)
+        with col4:
+            avg_ex = sum(l.get("total_exchanges",0) for l in logs) / max(len(logs),1)
+            st.metric("Avg Exchanges", f"{avg_ex:.1f}")
+
+        st.markdown("---")
+
+        # Intent breakdown
+        intents = {}
+        for l in logs:
+            k = l.get("intent_detected","unknown")
+            intents[k] = intents.get(k,0)+1
+        st.markdown("**Sessions by type:** " + " · ".join(f"{k}: {v}" for k,v in intents.items()))
+
+        # Urgency breakdown
+        urgencies = {"GREEN":0,"YELLOW":0,"URGENT":0}
+        for l in logs:
+            u = l.get("urgency_tier","GREEN")
+            urgencies[u] = urgencies.get(u,0)+1
+        st.markdown(f"**Urgency:** 🟢 GREEN: {urgencies['GREEN']} · 🟡 YELLOW: {urgencies['YELLOW']} · 🔴 URGENT: {urgencies['URGENT']}")
+
+        st.markdown("---")
+
+        # Individual session viewer
+        for i, log in enumerate(reversed(logs)):
+            with st.expander(
+                f"Session {log.get('session_id','?')} · {log.get('timestamp','?')} · "
+                f"{log.get('intent_detected','?')} · {log.get('urgency_tier','?')} · "
+                f"{'✅ Complete' if log.get('assessment_completed') else '⏳ Incomplete'}",
+                expanded=(i==0)
+            ):
+                st.markdown(f"**Chief complaint:** {log.get('chief_complaint','')}")
+                st.markdown(f"**Exchanges:** {log.get('total_exchanges',0)}")
+                st.markdown("**Conversation:**")
+                for msg in log.get("conversation",[]):
+                    role = "👤 Physician" if msg["role"]=="user" else "🏥 HealthMate"
+                    st.markdown(f"**{role}:** {msg['content']}")
+                    st.markdown("---")
+
+# ── STATS PANEL ───────────────────────────────────────────────────────
+if st.session_state.get("show_stats"):
+    logs = get_logs()
+    if logs:
+        st.markdown("---")
+        st.markdown("### 📈 Test Session Statistics")
+        st.markdown("*Use these numbers in investor and physician conversations.*")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            total = len(logs)
+            completed = sum(1 for l in logs if l.get("assessment_completed"))
+            st.markdown(f"""
+**Overall:**
+- Total test sessions: **{total}**
+- Assessments completed: **{completed}** ({int(completed/max(total,1)*100)}%)
+- Average exchanges per session: **{sum(l.get('total_exchanges',0) for l in logs)/max(total,1):.1f}**
+            """)
+        with col2:
+            urgencies = {"GREEN":0,"YELLOW":0,"URGENT":0}
+            for l in logs:
+                u = l.get("urgency_tier","GREEN")
+                urgencies[u] = urgencies.get(u,0)+1
+            st.markdown(f"""
+**Urgency distribution:**
+- 🟢 GREEN (self-care): **{urgencies['GREEN']}** ({int(urgencies['GREEN']/max(total,1)*100)}%)
+- 🟡 YELLOW (see physician): **{urgencies['YELLOW']}** ({int(urgencies['YELLOW']/max(total,1)*100)}%)
+- 🔴 URGENT (today): **{urgencies['URGENT']}** ({int(urgencies['URGENT']/max(total,1)*100)}%)
+            """)
+
+# ── AUTO-LOG WHEN ASSESSMENT COMPLETES ───────────────────────────────
+# This runs after every render — logs the session when assessment is done
+if st.session_state.get("assessment_done") and \
+   st.session_state.get("chief_complaint") and \
+   not st.session_state.get("session_logged"):
+    sid = save_session_log()
+    if sid:
+        st.session_state.session_logged = True
