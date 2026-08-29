@@ -256,7 +256,8 @@ for k,v in {"messages":[],"exchange_count":0,"assessment_done":False,"show_booki
              "chief_complaint":"","urgency":"GREEN","intent":None,"intent_detected":False,
              "guidelines_injected":False,"response_ratings":{},"session_rating":None,
              "session_notes":"","physician_name":"","session_logged":False,
-             "show_log_viewer":False,"evaluation_result":None,"evaluation_done":False}.items():
+             "show_log_viewer":False,"evaluation_result":None,"evaluation_done":False,
+             "physician_registered":False,"physician_display_name":"","physician_specialty":""}.items():
     if k not in st.session_state:
         st.session_state[k] = ([] if isinstance(v,list) else v)
 
@@ -278,6 +279,30 @@ with st.sidebar:
             st.session_state[k] = ([] if k=="messages" else False if k in ["assessment_done","show_booking","intent_detected","guidelines_injected"] else 0 if k=="exchange_count" else "GREEN" if k=="urgency" else None if k=="intent" else "")
         st.rerun()
     st.markdown("---")
+    if st.session_state.physician_registered:
+        st.markdown(f"👨‍⚕️ **Testing as:**")
+        st.markdown(f"**{st.session_state.physician_display_name}**")
+        st.caption(f"{st.session_state.physician_specialty}")
+        if st.button("🔄 Change Physician", use_container_width=True):
+            st.session_state.physician_registered = False
+            st.session_state.physician_display_name = ""
+            st.session_state.physician_specialty = ""
+            st.session_state.physician_name = ""
+            for k in ["messages","exchange_count","assessment_done","show_booking",
+                      "chief_complaint","urgency","intent","intent_detected",
+                      "guidelines_injected","evaluation_result","evaluation_done",
+                      "session_logged","session_rating","session_notes","response_ratings"]:
+                st.session_state[k] = ([] if k in ["messages"] else
+                                      {} if k in ["response_ratings"] else
+                                      False if k in ["assessment_done","show_booking",
+                                        "intent_detected","guidelines_injected",
+                                        "evaluation_done","session_logged"] else
+                                      0 if k == "exchange_count" else
+                                      "GREEN" if k == "urgency" else
+                                      None if k in ["intent","evaluation_result",
+                                        "session_rating"] else "")
+            st.rerun()
+        st.markdown("---")
     st.markdown("""### ✅ What I handle
 - **Symptoms** — one question at a time
 - **Medications** — OTC dosing, interactions
@@ -480,9 +505,48 @@ for msg_idx, msg in enumerate(st.session_state.messages):
         # No per-message rating — rating only at end of session
 
 prefill = st.session_state.pop("prefill","")
-placeholder = ("Describe symptoms, ask about a medication, lab result, screening, or 'should I go to ER?'" if not st.session_state.chief_complaint else "Your answer...")
-user_input = st.chat_input(placeholder)
-if prefill and not user_input: user_input = prefill
+
+# ── PHYSICIAN REGISTRATION GATE ──────────────────────────────────────
+# Physician must identify themselves before testing begins
+if not st.session_state.physician_registered:
+    st.markdown("---")
+    st.markdown("### 👨‍⚕️ Physician Identification")
+    st.markdown("Please enter your details before testing. This logs your session for clinical validation.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        reg_name = st.text_input("Your full name",
+            placeholder="Dr. Jane Smith",
+            key="reg_name_input")
+    with col2:
+        reg_specialty = st.text_input("Your specialty and board certification",
+            placeholder="Dermatology, FAAD",
+            key="reg_specialty_input")
+
+    reg_email = st.text_input("Email (optional — for follow-up questions)",
+        placeholder="jsmith@hospital.org",
+        key="reg_email_input")
+
+    if st.button("✅ Start Testing", type="primary", use_container_width=True):
+        if reg_name.strip():
+            st.session_state.physician_registered = True
+            st.session_state.physician_display_name = reg_name.strip()
+            st.session_state.physician_specialty = reg_specialty.strip()
+            st.session_state.physician_name = f"{reg_name.strip()} — {reg_specialty.strip()}"
+            st.session_state.reg_email = reg_email.strip()
+            st.rerun()
+        else:
+            st.error("Please enter your name to continue.")
+
+    st.markdown("---")
+    st.info("🔒 Your information is used only for clinical validation logging. No patient data is collected or stored.")
+    user_input = None
+
+else:
+    # Show who is testing in sidebar
+    placeholder = ("Describe symptoms, ask about a medication, lab result, screening, or 'should I go to ER?'" if not st.session_state.chief_complaint else "Your answer...")
+    user_input = st.chat_input(placeholder)
+    if prefill and not user_input: user_input = prefill
 
 if user_input:
     if not st.session_state.chief_complaint: st.session_state.chief_complaint = user_input
@@ -780,7 +844,9 @@ if st.session_state.assessment_done:
         rows.append({
             "Type": "SESSION_SUMMARY",
             "Timestamp": dt.datetime.now().strftime("%Y-%m-%d %H:%M UTC"),
-            "Physician": st.session_state.physician_name or "Anonymous",
+            "Physician": st.session_state.get("physician_display_name","Anonymous"),
+            "Specialty": st.session_state.get("physician_specialty",""),
+            "Email": st.session_state.get("reg_email",""),
             "Chief Complaint": st.session_state.chief_complaint,
             "Intent Detected": st.session_state.intent or "unknown",
             "Total Exchanges": st.session_state.exchange_count,
@@ -810,7 +876,9 @@ if st.session_state.assessment_done:
             rows.append({
                 "Type": "MESSAGE",
                 "Timestamp": dt.datetime.now().strftime("%Y-%m-%d %H:%M UTC"),
-                "Physician": st.session_state.physician_name or "Anonymous",
+                "Physician": st.session_state.get("physician_display_name","Anonymous"),
+            "Specialty": st.session_state.get("physician_specialty",""),
+            "Email": st.session_state.get("reg_email",""),
                 "Chief Complaint": st.session_state.chief_complaint,
                 "Intent Detected": st.session_state.intent or "",
                 "Total Exchanges": "",
