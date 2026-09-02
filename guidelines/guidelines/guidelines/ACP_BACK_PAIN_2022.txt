@@ -1,0 +1,76 @@
+SOURCE: ACP Clinical Practice Guideline: Noninvasive Treatments for Acute, Subacute, and Chronic Low Back Pain 2022
+AUTHORITY: American College of Physicians (ACP)
+URL: https://www.acponline.org/clinical-information/guidelines
+SPECIALTY: musculoskeletal
+CONDITION: back pain, lower back pain, lumbar pain, muscle strain, back injury
+VERSION: 2022
+CMO_APPROVED: PENDING
+
+CLASSIFICATION:
+- Acute: < 4 weeks duration
+- Subacute: 4-12 weeks duration
+- Chronic: > 12 weeks duration
+- 90% of acute low back pain resolves within 4-6 weeks with conservative treatment
+
+FIRST-LINE OTC TREATMENT (ACP Grade A recommendation):
+NSAIDs (preferred first-line for most patients):
+- Ibuprofen (Advil, Motrin): 400-600mg every 6-8 hours with food. Max 1200mg/day OTC. Max 10 days OTC.
+  Always take with food or milk. Do not take on empty stomach.
+  Avoid if: kidney disease, GI ulcer, blood thinners (warfarin, aspirin), heart failure
+- Naproxen sodium (Aleve): 220mg every 8-12 hours with food. Max 440mg/day OTC. Max 10 days OTC.
+
+Acetaminophen (second-line, less effective for back pain than NSAIDs):
+- 500-1000mg every 6 hours. Max 3000mg/day. Do not exceed.
+
+Heat therapy (strong evidence for muscle spasm):
+- Heating pad or warm compress: 20 minutes, 3 times daily
+- Evidence: equally effective to ibuprofen for acute muscle-related back pain
+- Do not apply heat while sleeping
+
+Non-pharmacologic (ACP strong recommendation):
+- Superficial heat (evidence Level A)
+- Massage therapy
+- Spinal manipulation (chiropractic)
+- Stay active: maintain normal activities as tolerated. DO NOT rest in bed.
+- Return to normal activities: evidence shows bed rest worsens outcomes
+
+CAUDA EQUINA SYNDROME — RED FLAG EMERGENCY (CALL 911):
+- Back pain + bladder incontinence or retention (cannot urinate OR cannot control urination)
+- Back pain + bowel incontinence
+- Saddle numbness (numbness in groin, inner thighs, buttocks)
+- Progressive leg weakness or foot drop
+- These symptoms require IMMEDIATE surgical evaluation. Time-sensitive emergency.
+
+OTHER RED FLAGS REQUIRING PHYSICIAN EVALUATION:
+- Pain after significant trauma (fall, accident): possible fracture — physician or ER
+- History of cancer + new back pain: possible metastasis — physician same week
+- Unexplained weight loss + back pain: physician same week
+- Night pain that wakes from sleep: physician evaluation
+- Age > 70 + acute back pain (osteoporosis fracture risk): physician evaluation
+- Intravenous drug use + back pain: possible spinal infection — ER
+- Immunosuppression + back pain: physician same day
+- Fever + back pain: possible kidney infection or spinal infection — physician today
+- Neurological symptoms:
+  - Leg weakness: physician same day
+  - Foot drop: physician same day
+  - Progressive numbness in legs: physician same day
+  - Loss of sensation in saddle area: 911 IMMEDIATELY (cauda equina)
+
+IMAGING:
+- NOT recommended for acute back pain < 6 weeks WITHOUT red flags
+- MRI/CT indicated: red flags, neurological symptoms, failure to improve at 6 weeks
+- X-ray indicated: trauma, age > 70, suspected fracture
+
+OTTAWA ANKLE RULES (for ankle injuries):
+X-ray required if:
+1. Bone tenderness at tip or posterior edge of lateral malleolus (fibula end)
+2. Bone tenderness at tip or posterior edge of medial malleolus (tibia end)
+3. Inability to bear weight (take 4 steps) immediately after injury and in clinic
+If NONE of these: X-ray not needed. Conservative management with PRICE protocol.
+
+PRICE PROTOCOL FOR SPRAINS:
+- P = Protection: avoid activities causing pain for 1-3 days
+- R = Rest: relative rest, not complete immobilization
+- I = Ice: 15-20 minutes every 2-3 hours for first 48-72 hours. Never apply ice directly to skin.
+- C = Compression: elastic bandage from foot to mid-calf, firm not tight
+- E = Elevation: ankle above heart level when resting
