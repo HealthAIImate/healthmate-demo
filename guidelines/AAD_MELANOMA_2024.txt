@@ -1,0 +1,51 @@
+SOURCE: AAD Melanoma Detection and Warning Signs Guidelines 2024
+AUTHORITY: American Academy of Dermatology (AAD)
+URL: https://www.aad.org/public/diseases/skin-cancer/types/common/melanoma/warning-signs
+SPECIALTY: dermatology
+CONDITION: melanoma, mole, skin cancer, lesion
+VERSION: 2024
+CMO_APPROVED: PENDING
+
+ABCDE WARNING SIGNS OF MELANOMA:
+The ABCDEs of melanoma are the warning signs that a mole or pigmented spot may be melanoma.
+
+A — Asymmetry: One half does not match the other half. A normal mole is symmetrical. If you draw a line through the middle, the two halves match.
+
+B — Border: The edges of an early melanoma tend to be uneven. The borders may be ragged, notched, or blurred in an unusual way. The pigment may spread into surrounding skin.
+
+C — Color: A variety of colors is a warning signal. Normal moles are a single shade of brown. A mole that shows different shades of brown, tan, or black — or areas of red, white, or blue — is a warning signal.
+
+D — Diameter: Melanomas are usually larger than 6 millimeters (about 1/4 inch, the diameter of a pencil eraser) when diagnosed. But they can be smaller.
+
+E — Evolving: Any change in size, shape, color, or any new symptom (such as bleeding, itching, or crusting) of a mole is a warning signal.
+
+URGENT REFERRAL CRITERIA:
+- Any single ABCDE criterion present: dermatologist evaluation recommended
+- Multiple ABCDE criteria present: URGENT dermatologist referral within 1-2 weeks
+- Rapid change in any characteristic: URGENT referral
+- Bleeding, itching, crusting: immediate evaluation
+- Family history of melanoma + suspicious lesion: URGENT
+
+HIGH RISK POPULATIONS:
+- Personal or family history of melanoma
+- More than 50 moles on body
+- Fair skin, light hair, light eyes
+- History of severe sunburns, especially in childhood
+- Outdoor occupational UV exposure (outdoor workers, lifeguards)
+- Immunosuppression
+- History of previous skin cancer
+
+WHAT IS NOT MELANOMA (reassuring features):
+- Perfectly symmetrical, smooth border, uniform tan/brown color
+- Stable for many years without change
+- Less than 6mm diameter and no other ABCDE features
+- These features do NOT eliminate evaluation need if patient is concerned
+
+OTC MANAGEMENT: No OTC treatment for suspicious lesions. Biopsy by dermatologist is the only way to confirm or rule out melanoma. Do not attempt to treat a suspicious mole with home remedies.
+
+NEXT STEP: In-person dermatologist evaluation. Biopsy if indicated by clinical examination.
+
+EMERGENCY RED FLAGS requiring same-day evaluation:
+- Rapidly growing lesion (changed significantly in days to weeks)
+- Lesion bleeding spontaneously without trauma
+- Satellite lesions appearing around primary lesion
