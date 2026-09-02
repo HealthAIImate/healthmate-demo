@@ -1,0 +1,41 @@
+SOURCE: AHA/ACC Emergency Cardiac Warning Signs + Stroke FAST Criteria 2023
+AUTHORITY: American Heart Association (AHA) + American College of Cardiology (ACC)
+URL: https://www.heart.org/en/health-topics/heart-attack/warning-signs-of-a-heart-attack
+SPECIALTY: emergency
+CONDITION: chest pain, heart attack, cardiac, stroke, FAST, emergency
+VERSION: 2023
+CMO_APPROVED: PENDING
+
+HEART ATTACK WARNING SIGNS (AHA 2023):
+Call 911 IMMEDIATELY for any of these:
+
+CLASSIC SYMPTOMS:
+- Chest discomfort: most heart attacks involve discomfort in the center of the chest that lasts more than a few minutes, or goes away and comes back. Can feel like uncomfortable pressure, squeezing, fullness or pain.
+- Upper body discomfort: discomfort in one or both arms, the back, neck, jaw or stomach
+- Shortness of breath: with or without chest discomfort
+- Cold sweat, nausea, or lightheadedness
+
+WOMEN'S ATYPICAL SYMPTOMS:
+Women are more likely to experience: shortness of breath, nausea/vomiting, back or jaw pain
+Women may have heart attacks WITHOUT chest pain
+
+ASPIRIN GUIDANCE (AHA):
+- If cardiac event suspected and patient NOT allergic to aspirin: chew (do not swallow) one regular aspirin (325mg) while waiting for 911
+- Do NOT give aspirin if patient is allergic, has active GI bleeding, or takes blood thinners
+- Do NOT give ibuprofen or naproxen instead — only aspirin
+
+STROKE WARNING SIGNS — FAST (AHA 2023):
+F — Face drooping: Does one side of the face droop or is it numb? Ask the person to smile. Is the person's smile uneven or lopsided?
+A — Arm weakness: Is one arm weak or numb? Ask the person to raise both arms. Does one arm drift downward?
+S — Speech difficulty: Is speech slurred? Is the person unable to speak or hard to understand? Ask the person to repeat a simple sentence.
+T — Time to call 911: If the person shows ANY of these symptoms, call 911 immediately. Note the time when symptoms first appeared.
+
+ADDITIONAL STROKE SYMPTOMS:
+- Sudden numbness or weakness of face, arm, or leg, especially on one side of the body
+- Sudden confusion, trouble speaking or understanding speech
+- Sudden trouble seeing in one or both eyes
+- Sudden trouble walking, dizziness, loss of balance or coordination
+- Sudden severe headache with no known cause (thunderclap headache)
+
+CRITICAL: Do NOT give aspirin for suspected stroke (unlike heart attack) — hemorrhagic stroke will be worsened
+TIME IS BRAIN: Brain loses 1.9 million neurons every minute during stroke. Every minute of delay matters.
