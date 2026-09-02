@@ -1,0 +1,66 @@
+SOURCE: IDSA Clinical Practice Guideline for Uncomplicated UTI in Women 2022
+AUTHORITY: Infectious Diseases Society of America (IDSA)
+URL: https://www.idsociety.org/practice-guideline/urinary-tract-infection-uti-in-women/
+SPECIALTY: urology
+CONDITION: UTI, urinary tract infection, cystitis, dysuria, frequent urination, burning urination
+VERSION: 2022
+CMO_APPROVED: PENDING
+
+DEFINITION OF UNCOMPLICATED UTI:
+Uncomplicated cystitis: acute cystitis occurring in a non-pregnant premenopausal woman with no known structural or functional urinary tract abnormalities or comorbidities.
+
+DIAGNOSTIC CRITERIA (clinical diagnosis acceptable):
+- Dysuria (burning/pain with urination)
+- Frequency (urge to urinate more often than normal)
+- Urgency (sudden compelling urge to urinate)
+- Suprapubic discomfort
+- Absence of vaginal discharge or irritation
+- Absence of fever (temperature < 100.4°F / 38°C)
+- Absence of flank pain or costovertebral angle tenderness
+
+SYMPTOMS THAT RULE OUT UNCOMPLICATED UTI (physician evaluation required):
+- Fever > 100.4°F (38°C) with urinary symptoms: possible pyelonephritis
+- Flank or back pain with urinary symptoms: possible pyelonephritis
+- Nausea or vomiting with urinary symptoms: possible pyelonephritis
+- Rigors (shaking chills): systemic infection
+- Pregnancy: ALL UTI in pregnancy requires physician evaluation
+- Men: all male UTI is considered complicated — physician required
+- Children under 18: physician evaluation required
+- Recurrent UTI (> 2 per year): physician evaluation required
+- Structural urinary abnormalities: physician evaluation required
+- Immunocompromised patients: physician evaluation required
+- Symptoms > 7 days without treatment: physician evaluation required
+
+OTC MANAGEMENT (symptomatic relief only — does NOT treat infection):
+Phenazopyridine (AZO Standard, Uristat):
+- Dose: 200mg (2 tablets of 100mg) OR 97.2mg per AZO product label
+- Per AZO Standard label: 2 tablets 3 times daily with or after meals
+- Maximum duration: 2 days OTC. After 2 days physician evaluation required
+- Mechanism: urinary analgesic — relieves burning, urgency, frequency symptoms only
+- Does NOT treat bacterial infection — antibiotic required for cure
+- Side effects: turns urine and sometimes tears/contact lenses orange — this is normal and expected
+- Contraindications: kidney disease, severe liver disease, G6PD deficiency
+- Warning: if symptoms not improved after 2 days OTC use, physician evaluation required
+
+ANTIBIOTIC TREATMENT (prescription only — IDSA first-line):
+- Nitrofurantoin (Macrobid): 100mg twice daily x 5 days (preferred first-line)
+- Trimethoprim-sulfamethoxazole (Bactrim): if local resistance <20%, x 3 days
+- Fosfomycin: 3g single dose
+NOTE: HealthMate does NOT prescribe antibiotics. Physician evaluation required.
+
+PYELONEPHRITIS RED FLAGS — GO TO ER:
+- Fever > 100.4°F / 38°C + urinary symptoms
+- Flank pain (pain in side or back, below ribs)
+- Nausea or vomiting + urinary symptoms
+- Rigors or shaking chills
+- Altered mental status + urinary symptoms
+
+SPECIAL POPULATIONS:
+- Pregnancy: ANY urinary symptoms in pregnancy → physician same day, not urgent care
+  Risk: untreated UTI in pregnancy → pyelonephritis in 20-30% → preterm labor risk
+  No OTC phenazopyridine in pregnancy (no established safety data)
+- Elderly women: may have atypical symptoms — confusion, falls, general malaise
+  Lower threshold for physician evaluation in patients > 65
+
+FOLLOW-UP: Test of cure not routinely recommended for uncomplicated UTI in young women.
+Recurrent UTI (2+ per year): discuss prophylaxis with physician.
