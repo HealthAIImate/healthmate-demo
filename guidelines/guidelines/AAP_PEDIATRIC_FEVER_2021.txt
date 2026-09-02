@@ -1,0 +1,75 @@
+SOURCE: AAP Clinical Practice Guideline: Fever Without a Source in Infants 2021
+AUTHORITY: American Academy of Pediatrics (AAP)
+URL: https://publications.aap.org/pediatrics/article/147/2/e2020032766/33512
+SPECIALTY: pediatric
+CONDITION: pediatric fever, infant fever, baby fever, child fever, temperature children
+VERSION: 2021
+CMO_APPROVED: PENDING
+
+DEFINITION OF FEVER IN CHILDREN:
+Rectal temperature ≥ 38.0°C (100.4°F) — rectal is most accurate in infants
+Oral temperature ≥ 37.5°C (99.5°F)
+Axillary (armpit) temperature ≥ 37.2°C (99°F) — least accurate method
+Tympanic (ear) temperature ≥ 37.5°C
+
+AGE-BASED FEVER MANAGEMENT:
+
+AGE < 3 MONTHS (< 90 days) — ALWAYS GO TO ER:
+- ANY fever ≥ 38.0°C rectal = EMERGENCY — ER immediately, no exceptions
+- Infants this age cannot mount full immune response
+- Bacterial infections (sepsis, meningitis) can be rapidly life-threatening
+- Do NOT give fever reducers before ER evaluation — masks important diagnostic information
+- Do NOT wait to see if fever comes down — go immediately
+- Do NOT call pediatrician first — go to ER directly
+
+AGE 3-6 MONTHS with fever ≥ 38.0°C:
+- Physician evaluation same day
+- If well-appearing and vaccinated: pediatrician call first, may be evaluated in office
+- If ill-appearing, lethargic, or difficult to console: ER
+
+AGE 6 MONTHS - 2 YEARS with fever ≥ 39°C (102.2°F):
+- If well-appearing and vaccinated: may manage at home with OTC
+- If fever ≥ 40°C (104°F): physician evaluation same day
+- If ill-appearing, not drinking, or inconsolable: physician evaluation
+
+AGE > 2 YEARS with fever ≥ 39°C:
+- May manage at home if well-appearing and drinking fluids
+- Return to physician if fever persists > 3 days
+- Physician same day if any of the red flags below
+
+WEIGHT-BASED DOSING (AAP approved — ALWAYS use weight, not age alone):
+
+Acetaminophen (Infant Tylenol 160mg/5mL concentration — ONLY use this concentration):
+- Dose: 15mg/kg per dose (range 10-15mg/kg)
+- Example: 6kg baby = 90mg = 2.8mL of 160mg/5mL
+- Example: 10kg child = 150mg = 4.7mL of 160mg/5mL
+- Frequency: every 4-6 hours as needed
+- Maximum: 5 doses in 24 hours. Do not exceed.
+- NEVER use adult Tylenol (higher concentration) for infants
+
+Ibuprofen (Children's Motrin/Advil 100mg/5mL — for age ≥ 6 MONTHS ONLY):
+- Dose: 10mg/kg per dose
+- Example: 8kg baby = 80mg = 4mL of 100mg/5mL
+- Example: 15kg child = 150mg = 7.5mL of 100mg/5mL
+- Frequency: every 6-8 hours as needed
+- Maximum: 4 doses in 24 hours
+- NEVER give to infants under 6 months
+
+NEVER:
+- NEVER give aspirin to any child (Reye syndrome — fatal liver and brain damage)
+- NEVER alternate Tylenol and Motrin unless specifically directed by physician (overdose risk)
+- NEVER use adult formulations in children
+- NEVER estimate dose by age — always use weight
+
+FEVER RED FLAGS REQUIRING IMMEDIATE ER REGARDLESS OF TEMPERATURE:
+- Inconsolable crying, cannot be comforted
+- Bulging fontanelle (soft spot on top of head in infants)
+- Stiff neck (cannot touch chin to chest)
+- Petechial rash (small red/purple dots that don't fade with pressure — do the glass test)
+- Difficulty breathing, fast breathing
+- Lips or fingernails turning blue
+- Seizure (even if first seizure in a child with fever)
+- Confusion or altered consciousness
+- Difficulty waking up
+- Severe headache
+- Age < 3 months with any fever
