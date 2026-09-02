@@ -251,9 +251,37 @@ SCENARIOS = {
     "❤ Blood pressure":"My blood pressure today was 148 over 92. I am on medication.",
 }
 
+# ── PROFILE CONTEXT BUILDER ─────────────────────────────────────────
+def build_profile_context():
+    """Build patient profile context string for Claude."""
+    parts = []
+    if st.session_state.get("user_name"):
+        parts.append(f"Patient name: {st.session_state.user_name}")
+    if st.session_state.get("user_age"):
+        parts.append(f"Age: {st.session_state.user_age}")
+    if st.session_state.get("user_sex") and st.session_state.user_sex not in ["","Prefer not to say"]:
+        parts.append(f"Biological sex: {st.session_state.user_sex}")
+    if st.session_state.get("user_medications") and st.session_state.user_medications.lower() != "none":
+        parts.append(f"Current medications: {st.session_state.user_medications}")
+    if st.session_state.get("user_allergies") and st.session_state.user_allergies.lower() != "none":
+        parts.append(f"Known allergies: {st.session_state.user_allergies}")
+    if st.session_state.get("user_conditions") and st.session_state.user_conditions.lower() != "none":
+        parts.append(f"Existing conditions: {st.session_state.user_conditions}")
+    if st.session_state.get("vitals_log"):
+        v = st.session_state.vitals_log[-1]
+        vitals = []
+        if v.get("bp"): vitals.append(f"BP {v['bp']}")
+        if v.get("glucose"): vitals.append(f"Glucose {v['glucose']} mg/dL")
+        if v.get("weight"): vitals.append(f"Weight {v['weight']}")
+        if vitals: parts.append(f"Recent vitals: {', '.join(vitals)}")
+    return "\n".join(parts) if parts else ""
+
 # session state
 for k,v in {"messages":[],"exchange_count":0,"assessment_done":False,"show_booking":False,
              "chief_complaint":"","urgency":"GREEN","intent":None,"intent_detected":False,
+             "profile_complete":False,"user_name":"","user_age":"","user_sex":"",
+             "user_medications":"","user_allergies":"","user_conditions":"",
+             "health_history":[],"vitals_log":[],
              "guidelines_injected":False,"response_ratings":{},"session_rating":None,
              "session_notes":"","physician_name":"","session_logged":False,
              "show_log_viewer":False,"evaluation_result":None,"evaluation_done":False,
@@ -279,6 +307,28 @@ with st.sidebar:
             st.session_state[k] = ([] if k=="messages" else False if k in ["assessment_done","show_booking","intent_detected","guidelines_injected"] else 0 if k=="exchange_count" else "GREEN" if k=="urgency" else None if k=="intent" else "")
         st.rerun()
     st.markdown("---")
+    # Show user profile summary in sidebar
+    if st.session_state.profile_complete and st.session_state.user_name:
+        st.markdown("---")
+        st.markdown(f"### 👤 {st.session_state.user_name}")
+        if st.session_state.user_age:
+            st.caption(f"Age: {st.session_state.user_age} · {st.session_state.user_sex}")
+        if st.session_state.user_conditions:
+            st.caption(f"Conditions: {st.session_state.user_conditions[:50]}")
+        if st.session_state.user_medications:
+            st.caption(f"Meds: {st.session_state.user_medications[:50]}")
+        if st.session_state.vitals_log:
+            v = st.session_state.vitals_log[-1]
+            vitals_parts = []
+            if v.get("bp"): vitals_parts.append(f"BP: {v['bp']}")
+            if v.get("glucose"): vitals_parts.append(f"Glucose: {v['glucose']}")
+            if vitals_parts:
+                st.caption(" · ".join(vitals_parts))
+        if st.button("✏️ Edit Profile", use_container_width=True, key="edit_profile"):
+            st.session_state.profile_complete = False
+            st.rerun()
+        st.markdown("---")
+
     if st.session_state.physician_registered:
         st.markdown(f"👨‍⚕️ **Testing as:**")
         st.markdown(f"**{st.session_state.physician_display_name}**")
@@ -506,9 +556,78 @@ for msg_idx, msg in enumerate(st.session_state.messages):
 
 prefill = st.session_state.pop("prefill","")
 
+# ── USER HEALTH PROFILE SCREEN ───────────────────────────────────────
+# Shown once — builds persistent health context for personalized responses
+if not st.session_state.profile_complete:
+    st.markdown("---")
+    st.markdown("### 👤 Your Health Profile")
+    st.markdown("This helps HealthMate give you personalized, accurate guidance.")
+    st.caption("Takes 60 seconds. Only stored in your current session.")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        p_name = st.text_input("Your first name", placeholder="Dhaval", key="p_name")
+    with col2:
+        p_age = st.text_input("Age", placeholder="42", key="p_age")
+    with col3:
+        p_sex = st.selectbox("Biological sex", ["Prefer not to say","Male","Female","Other"], key="p_sex")
+
+    col4, col5 = st.columns(2)
+    with col4:
+        p_meds = st.text_area("Current medications",
+            placeholder="e.g. Lisinopril 10mg, Metformin 500mg, or None",
+            height=80, key="p_meds")
+    with col5:
+        p_allergies = st.text_area("Allergies",
+            placeholder="e.g. Penicillin, Aspirin, Sulfa drugs, or None",
+            height=80, key="p_allergies")
+
+    p_conditions = st.text_area("Existing health conditions",
+        placeholder="e.g. Type 2 diabetes, Hypertension, Asthma — or None",
+        height=60, key="p_conditions")
+
+    st.markdown("**Recent vitals** (optional — leave blank if unknown)")
+    col6, col7, col8 = st.columns(3)
+    with col6:
+        p_bp = st.text_input("Blood pressure", placeholder="120/80", key="p_bp")
+    with col7:
+        p_glucose = st.text_input("Last glucose (mg/dL)", placeholder="95", key="p_glucose")
+    with col8:
+        p_weight = st.text_input("Weight (lbs or kg)", placeholder="170 lbs", key="p_weight")
+
+    col_btn1, col_btn2 = st.columns([1,1])
+    with col_btn1:
+        if st.button("✅ Save Profile & Start", type="primary", use_container_width=True):
+            st.session_state.profile_complete = True
+            st.session_state.user_name = p_name.strip()
+            st.session_state.user_age = p_age.strip()
+            st.session_state.user_sex = p_sex if p_sex != "Prefer not to say" else ""
+            st.session_state.user_medications = p_meds.strip()
+            st.session_state.user_allergies = p_allergies.strip()
+            st.session_state.user_conditions = p_conditions.strip()
+            # Store vitals
+            if any([p_bp, p_glucose, p_weight]):
+                st.session_state.vitals_log.append({
+                    "date": "Today",
+                    "bp": p_bp.strip(),
+                    "glucose": p_glucose.strip(),
+                    "weight": p_weight.strip()
+                })
+            st.rerun()
+    with col_btn2:
+        if st.button("Skip — continue as guest", use_container_width=True):
+            st.session_state.profile_complete = True
+            st.rerun()
+
+    st.info("🔒 Your profile is stored only in this browser session. Nothing is sent to any server.")
+    user_input = None
+
+else:
+    pass  # Profile complete — continue to physician gate or chat below
+
 # ── PHYSICIAN REGISTRATION GATE ──────────────────────────────────────
 # Physician must identify themselves before testing begins
-if not st.session_state.physician_registered:
+if st.session_state.profile_complete and not st.session_state.physician_registered:
     st.markdown("---")
     st.markdown("### 👨‍⚕️ Physician Identification")
     st.markdown("Please enter your details before testing. This logs your session for clinical validation.")
@@ -586,7 +705,26 @@ if user_input:
                             st.markdown(f'<span class="ibadge {cls}">{lbl}</span>',unsafe_allow_html=True)
 
                     intent = st.session_state.intent or "symptom"
-                    system = SP.get(intent, SP["general"])
+                    base_system = SP.get(intent, SP["general"])
+
+                    # Inject patient profile into system prompt
+                    profile_ctx = build_profile_context()
+                    if profile_ctx:
+                        system = base_system + f"""
+
+PATIENT HEALTH PROFILE (use this context in every response):
+{profile_ctx}
+
+IMPORTANT PROFILE RULES:
+- Address patient by name if provided
+- Never ask for information already in the profile (age, sex, medications, allergies)
+- Check medications for interactions before recommending any OTC drugs
+- Consider existing conditions when assessing urgency
+- Reference their specific vitals when relevant (e.g. if BP is high and they ask about a new symptom)
+- If they have a chronic condition, factor it into your clinical assessment
+"""
+                    else:
+                        system = base_system
 
                     # FIX 1: Trim message history to last MAX_HISTORY messages
                     # This prevents context length errors on long conversations
